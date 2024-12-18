@@ -65,7 +65,7 @@ _event_handlers = dict()
 for e in Event:
     _event_handlers[e] = EventHandler('Scenarios/' + e.name.lower())
 
-# == APIs allowing scenarios to subscribe to events ==
+# == APIs allowing scenarios to subscribe to events and access each other ==
 
 def subscribe(event: Event, callback: Callable):
     '''
@@ -82,16 +82,22 @@ def unsubscribe(event: Event, callback: Callable):
     '''
     _event_handlers[event].unsubscribe(callback)
 
+def get(name: str) -> object:
+    '''
+    Get another scenario by name
+    '''
+    return _scenarios.get(name, None)
+
 # == API for lauching scenarios from other modules ==
 
 def launch(name: str, event: Event, rabbit: str = None, args: dict = {}) -> bool:
     '''
     Asynchronously launch a scenario. Returns True if the scenario exists.
     '''
-    callback = _scenarios.get(name, None)
-    if callback is None:
+    module = _scenarios.get(name, None)
+    if module is None or not hasattr(module, 'run'):
         return False
-    t = Thread(target=callback, args=[event, rabbit, args], name='Scenario instance')
+    t = Thread(target=module.run, args=[event, rabbit, args], name='Scenario instance')
     t.start()
     return True
 
@@ -149,7 +155,7 @@ if os.path.isdir('scenarios'):
                 module_name = 'scenarios.' + name
                 module = _import_module(module_name, file_path)
                 if hasattr(module, 'run'):
-                    _scenarios[name] = module.run
+                    _scenarios[name] = module
                     if hasattr(module, 'init'):
                         module.init()
                     logs.debug('Loaded scenario: ' + name)
