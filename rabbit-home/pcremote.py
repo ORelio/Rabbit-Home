@@ -78,9 +78,9 @@ def send(device: str, command: str, timeout_seconds: int = 10) -> bool:
             logs.info('Sending command {} to {}'.format(command, device))
             try:
                 server = socket.socket()
-                server.connect((ip, port))
                 if timeout_seconds > 0:
                     server.settimeout(timeout_seconds)
+                server.connect((ip, port))
                 server.send((_hello_string + "\n").encode())
                 challenge = server.recv(1024).decode().split("\n")[0]
                 response = hashlib.sha256((challenge + api_key + command_id).encode()).hexdigest()
