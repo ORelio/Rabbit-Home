@@ -1,1 +1,1 @@
-Place sound files here for use with soundplayer.py
+Place MP3 files here for use with soundplayer.py
