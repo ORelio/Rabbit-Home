@@ -64,7 +64,7 @@ def pc_state_change(computer: str, state: str):
     '''
     rabbit_name = get_rabbit(computer)
     with _pc_states_lock:
-        if state == 'logon':
+        if state == 'logon' or state == 'startup':
             _pc_states[pc] = PcState.ACTIVE
         elif state == 'logoff':
             _pc_states[pc] = PcState.LOCKED
