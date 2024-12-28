@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
-# ===============================================================================
-# plugs433 - controll 433Mhz plugs using codesend tool and GPIO (Raspberry Pi...)
+# ==============================================================================
+# plugs433 - control 433Mhz plugs using codesend tool and GPIO (Raspberry Pi...)
 # Uses 'codesend' command. See utilities/codesend folder for setup instructions
 # By ORelio (c) 2024 - CDDL 1.0
-# ===============================================================================
+# ==============================================================================
 
 from threading import Lock
 
@@ -35,7 +35,7 @@ def _calculate_code(channel: str, unit: str, on: bool) -> int:
     - In channel, '1' means switch set UP (ON), '0' means switch set DOWN (OFF)
     - It is possible to set multiple letters at a time in unit code, e.g. 'ABCDE'.
     - As long as the corresponding set of switches is enabled on the device, it will respond.
-    - Devices with multiple letters in unit code will not work with the bundled remote)
+    - Devices with multiple letters in unit code will not work with the bundled remote
     '''
     # How the protocol works:
     #  Each plug has 5 switches for system code, and 5 switches for unit code
@@ -58,10 +58,10 @@ def _calculate_code(channel: str, unit: str, on: bool) -> int:
         if c != '0' and c != '1':
             raise ValueError('channel must be a sequence of 5 digits (0 or 1)')
     if len(unit) < 1 or len(unit) > 5:
-        raise ValueError('unit must be 1-5 uppercase letter(s): A, B, C, D or E')
+        raise ValueError('unit must be 1-5 uppercase letter(s): A, B, C, D, E')
     for c in unit:
         if not c in unit_codes:
-            raise ValueError('unit must be 1-5 uppercase letter(s): A, B, C, D or E')
+            raise ValueError('unit must be 1-5 uppercase letter(s): A, B, C, D, E')
     binary_code = ''
     for c in channel:
         binary_code = binary_code + '0'
@@ -93,15 +93,15 @@ def switch(device: str, state: bool, sends: int = 3, delay_seconds: int = 1):
         state_str = 'ON' if state else 'OFF'
         logs.info('Setting state {} for device {} ({} send{})'.format(
             state_str, device, sends, 's' if sends > 1 else ''))
-        with _command_lock:
-            for i in range(sends):
+        for i in range(sends):
+            with _command_lock:
                 subprocess.run([
                     _DEVICE_COMMAND,
                     str(_calculate_code(channel, unit, state))
                 ], stdout=subprocess.DEVNULL)
                 time.sleep(_SEND_COMMAND_DELAY) # Minimum delay between 2 commands
-                if sends > 1:
-                    time.sleep(delay_seconds)
+            if sends > 1:
+                time.sleep(delay_seconds)
     else:
         raise ValueError('Unknown device: ' + str(device))
 
