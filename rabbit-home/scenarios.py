@@ -170,12 +170,13 @@ def dispatch(event: Event, rabbit: str = None, args: dict = {}):
     '''
     _event_handlers[event].dispatch(event, rabbit, args)
 
-def _nabstate_event_callback(rabbit: str, new_state: str):
+def _nabstate_event_callback(rabbit: str, new_state: str, automated: bool):
     '''
     Listen to nabstate events to run sleep/wakeup events in scenarios
+    Automated means thet state change was caused by a scenario/module calling nabstate.set_sleeping()
     '''
     if new_state in _nabstate_to_event:
-        dispatch(_nabstate_to_event[new_state], rabbits.get_name(rabbit))
+        dispatch(_nabstate_to_event[new_state], rabbits.get_name(rabbit), {'automated': automated })
 
 def _daycycle_event_callback(current_state: DaycycleState):
     '''

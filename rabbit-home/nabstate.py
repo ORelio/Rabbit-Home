@@ -10,6 +10,8 @@ from flask import Blueprint, request
 from threading import Lock
 from typing import Callable
 
+import time
+
 import rabbits
 import nabweb
 import nabd
@@ -20,6 +22,7 @@ from logs import logs
 _state_lock = Lock()
 _stateinfo = dict()
 _sleeping = dict()
+_last_automated_state_change = dict()
 
 STATE_IDLE = 'idle'
 STATE_ASLEEP = 'asleep'
@@ -29,7 +32,8 @@ STATE_OFFLINE = 'offline'
 
 '''
 Nabstate Event Handler
-Callbacks will receive args = rabbit: str,  new_state: str
+Callbacks will receive args = rabbit: str,  new_state: str, automated: bool
+Automated means that we just programmatically changed the rabbit state
 '''
 event_handler = EventHandler('Nabstate', log_level=None)
 
@@ -49,7 +53,7 @@ def _nabd_state_monitor(rabbit: str, nabd_event: dict):
     if 'type' in nabd_event and nabd_event['type'] == 'state' and 'state' in nabd_event:
         _cache_current_state(nabaztag_ip, nabd_event['state'])
         _handle_sleep_wakeup_event(nabaztag_ip, nabd_event['state'])
-        event_handler.dispatch(rabbits.get_name(nabaztag_ip), nabd_event['state'])
+        event_handler.dispatch(rabbits.get_name(nabaztag_ip), nabd_event['state'], False)
 
 def _cache_current_state(rabbit: str, state: str):
     '''
@@ -74,7 +78,12 @@ def _handle_sleep_wakeup_event(rabbit: str, state: str):
             _sleeping[nabaztag_ip] = new_sleep_state
         if new_sleep_state != old_sleep_state:
             event = STATE_FALLING_ASLEEP if new_sleep_state else STATE_WAKING_UP
-            event_handler.dispatch(rabbits.get_name(nabaztag_ip), event)
+            event_was_automated = False
+            with _state_lock:
+                if _last_automated_state_change.get(nabaztag_ip, 0) + 60 > time.time():
+                    event_was_automated = True
+                    _last_automated_state_change[nabaztag_ip] = 0
+            event_handler.dispatch(rabbits.get_name(nabaztag_ip), event, event_was_automated)
 
 def initialize(rabbit: str):
     '''
@@ -116,6 +125,10 @@ def set_sleeping(rabbit: str, sleeping: bool, play_sound: bool = False):
         'sleep_time': '00:00' if sleeping else '99:99',
         'wakeup_time': '99:99' if sleeping else '00:00',
     })
+
+    # Take note that we just programmatically changed the rabbit's state
+    with _state_lock:
+        _last_automated_state_change[nabaztag_ip] = time.time()
 
     # The sleep_wakeup_event will occur after a delay (a few seconds)
     # If we successfully woke up a rabbit, we want to make it appear awake
