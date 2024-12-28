@@ -203,7 +203,7 @@ def _threshold_check(outside: bool, current_state: TemperatureEventType, current
             indoors_minimum_temperature = None
             indoors_maximum_temperature = None
             for device in _device_to_name:
-                device_temp_data = _last_temperature_value[device]
+                device_temp_data = _last_temperature_value.get(device, None)
                 if not device_temp_data:
                     indoors_data_available = False
                 else:
