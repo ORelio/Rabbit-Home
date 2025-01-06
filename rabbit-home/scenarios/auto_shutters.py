@@ -18,7 +18,7 @@ def init():
     subscribe(Event.EVENING, run)
     subscribe(Event.SUNSET, run)
     subscribe(Event.TEMPERATURE, run)
-    subscribe(Event.WINDOW, window)
+    subscribe(Event.OPEN_CLOSE, window)
 
 def run(event: Event, rabbit: str = None, args: dict = {}):
     if event == Event.TEMPERATURE and not args['outside']:
@@ -28,5 +28,5 @@ def run(event: Event, rabbit: str = None, args: dict = {}):
 
 def window(event: Event, rabbit: str = None, args: dict = {}):
     if 'state' in args and 'shutter' in args:
-        logs.info('Readjusting shutter for window event: {}, {}'.format(args['shutter'], args['state'].name))
+        logs.info('Readjusting shutter for window open/close event: {}, {}'.format(args['shutter'], args['state'].name))
         shutters_auto.adjust_shutters(shutter_name=args['shutter'])

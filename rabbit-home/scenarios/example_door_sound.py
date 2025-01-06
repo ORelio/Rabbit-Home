@@ -3,20 +3,20 @@
 # Example scenario: Play sound when opening door
 
 from scenarios import Event, subscribe, unsubscribe
-from windows import WindowState
+from openings import OpenState
 
 import soundplayer
 
 from logs import logs
 
 def init():
-    subscribe(Event.WINDOW, run)
+    subscribe(Event.OPEN_CLOSE, run)
 
 def run(event: Event, rabbit: str = None, args: dict = {}):
-    if 'window' in args and 'state' in args:
-        if args['state'] == WindowState.OPEN:
+    if 'opening' in args and 'state' in args:
+        if args['state'] == OpenState.OPEN:
             sound = 'door_open.mp3'
         else:
             sound = 'door_close.mp3'
-        logs.info('Window event {}, {}, playing: {}'.format(args['window'], args['state'].name, sound))
+        logs.info('Open/Close event {}, {}, playing: {}'.format(args['opening'], args['state'].name, sound))
         soundplayer.play(sound, rabbit=rabbit)

@@ -2,21 +2,26 @@
 
 # =========================================================
 # Away mode - Put rabbits to sleep while away using a ztamp
-# By ORelio (c) 2023-2024 - CDDL 1.0
+# By ORelio (c) 2023-2025 - CDDL 1.0
 # =========================================================
 
 from scenarios import Event, subscribe, unsubscribe
 from shutters import ShutterState
+from openings import OpenState
 from logs import logs
+
+import time
 
 import rabbits
 import nabstate
 import shutters_auto
 
 away = False
+away_time = 0
 
 def init():
     subscribe(Event.WAKEUP, wakeup)
+    subscribe(Event.OPEN_CLOSE, door)
 
 # RFID, Switch or API: Switch Away mode
 def run(event: Event, rabbit: str = None, args: dict = {}):
@@ -28,15 +33,28 @@ def run(event: Event, rabbit: str = None, args: dict = {}):
 
 # Button on rabbit: End Away mode
 def wakeup(event: Event, rabbit: str = None, args: dict = {}):
-    logs.info('Wakeup: ' + str(rabbits.get_name(rabbit)))
-    _back(False)
+    if not 'automated' in args or not args['automated']:
+        logs.info('Wakeup: ' + str(rabbits.get_name(rabbit)))
+        _back(False)
+
+# Open front door: End Away mode
+def door(event: Event, rabbit: str = None, args: dict = {}):
+    if 'is_front_door' in args and args['is_front_door'] \
+      and 'state' in args and args['state'] == OpenState.OPEN:
+        if away_time + 60 > time.time():
+            logs.debug('Front door opened quickly after activating away mode, ignoring')
+        else:
+            logs.info('Front door opened')
+            _back(False)
 
 # Start Away mode
 def _away():
     global away
+    global away_time
     if not away:
         logs.info('Entering Away mode')
         away = True
+        away_time = time.time()
         shutters_auto.operate('all', ShutterState.CLOSE)
         for rabbit in rabbits.get_all():
             nabstate.set_sleeping(rabbit, sleeping=True, play_sound=False)

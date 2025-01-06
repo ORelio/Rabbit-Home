@@ -2,7 +2,7 @@
 
 # ==================================================
 # scenarios - manage scenarios and associated events
-# By ORelio (c) 2023-2024 - CDDL 1.0
+# By ORelio (c) 2023-2025 - CDDL 1.0
 # ==================================================
 
 import importlib
@@ -19,13 +19,13 @@ import daycycle
 import rabbits
 import pcstate
 import temperature
-import windows
+import openings
 
 from events import EventHandler
 from daycycle import DaycycleState
 from pcstate import PcState
 from temperature import TemperatureEvent, TemperatureEventType
-from windows import WindowState
+from openings import OpenState
 from logs import logs
 
 class Event(Enum):
@@ -42,7 +42,7 @@ class Event(Enum):
     SUNSET = 11
     TEMPERATURE = 12
     TEMPERATURE_DATA = 13
-    WINDOW = 14
+    OPEN_CLOSE = 14
     PC_STATE = 15
 
 _nabstate_to_event = {
@@ -194,11 +194,11 @@ def _temperature_event_callback(event: TemperatureEvent):
     else:
         dispatch(Event.TEMPERATURE_DATA, rabbit=event.rabbit, args=vars(event))
 
-def _window_event_callback(window_name: str, state: WindowState, shutter_name: str = None, rabbit_name: str = None):
+def _opening_event_callback(opening_name: str, state: OpenState, shutter_name: str = None, rabbit_name: str = None, is_front_door: bool = False):
     '''
-    Listen to window events to run window event in scenarios
+    Listen to opening events to run OPEN_CLOSE event in scenarios
     '''
-    dispatch(Event.WINDOW, rabbit=rabbit_name, args={'window': window_name, 'state': state, 'shutter': shutter_name})
+    dispatch(Event.OPEN_CLOSE, rabbit=rabbit_name, args={'opening': opening_name, 'state': state, 'shutter': shutter_name, 'is_front_door': is_front_door})
 
 def _pcstate_event_callback(computer: str, state: PcState, rabbit_name: str):
     '''
@@ -209,5 +209,5 @@ def _pcstate_event_callback(computer: str, state: PcState, rabbit_name: str):
 nabstate.event_handler.subscribe(_nabstate_event_callback)
 daycycle.event_handler.subscribe(_daycycle_event_callback)
 temperature.event_handler.subscribe(_temperature_event_callback)
-windows.event_handler.subscribe(_window_event_callback)
+openings.event_handler.subscribe(_opening_event_callback)
 pcstate.event_handler.subscribe(_pcstate_event_callback)

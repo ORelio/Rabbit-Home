@@ -21,7 +21,7 @@ import rfid
 import infrared
 import pcremote
 import switches
-import windows
+import openings
 import soundplayer
 import httpserver
 

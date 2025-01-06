@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
-# =========================================
-# whindows - monitor and query window state
-# By ORelio (c) 2024 - CDDL 1.0
-# =========================================
+# ==============================================
+# openings - monitor and query window/door state
+# By ORelio (c) 2024-2025 - CDDL 1.0
+# ==============================================
 
 from threading import Lock
 from configparser import ConfigParser
@@ -15,25 +15,27 @@ import rabbits
 from logs import logs
 from events import EventHandler
 
-class WindowState(Enum):
+class OpenState(Enum):
     OPEN = 1
     CLOSED = 2
     UNKNOWN = 3
 
 config = ConfigParser()
-config.read('config/windows.ini')
+config.read('config/openings.ini')
 
 _data_lock = Lock()
-_window_state = {}
+_opening_state = {}
 
-_window_to_device = {}
-_device_to_window = {}
+_opening_to_device = {}
+_device_to_opening = {}
 
-_window_to_shutter = {}
-_shutter_to_window = {}
+_opening_to_shutter = {}
+_shutter_to_opening = {}
 
-_window_to_rabbit = {}
-_rabbit_to_windows = {}
+_opening_to_rabbit = {}
+_rabbit_to_openings = {}
+
+_front_door = None
 
 # == Load config ==
 
@@ -42,89 +44,94 @@ for name_raw in config.sections():
     device = config.get(name_raw, 'device')
     shutter = config.get(name_raw, 'shutter', fallback=None)
     rabbit = config.get(name_raw, 'rabbit', fallback=None)
+    is_front_door = config.getboolean(name_raw, 'frontdoor', fallback=False)
     device_data = device.split(':')
     if len(device_data) != 2:
         raise ValueError('Invalid device identifier for {}: "{}". Expecting type:devicename'.format(name, device_data))
     if device_data[0].lower() != 'enocean':
         raise ValueError('Invalid device type for {}: "{}". Currently supported: enocean'.format(name, device_data[0].lower()))
-    if name in _window_to_device:
-        raise ValueError('Duplicate window name: {}'.format(name))
-    if device in _device_to_window:
-        raise ValueError('Device mapped to several windows: {}'.format(device))
+    if name in _opening_to_device:
+        raise ValueError('Duplicate opening name: {}'.format(name))
+    if device in _device_to_opening:
+        raise ValueError('Device mapped to several openings: {}'.format(device))
     if rabbit:
         rabbit = rabbits.get_name(rabbit)
     if shutter:
         shutter = shutter.lower()
-    if shutter and shutter in _shutter_to_window:
-        raise ValueError('Shutter mapped to several windows: {}'.format(shutter))
-    _window_to_device[name] = device
-    _device_to_window[device] = name
+    if shutter and shutter in _shutter_to_opening:
+        raise ValueError('Shutter mapped to several openings: {}'.format(shutter))
+    if is_front_door and _front_door:
+        raise ValueError('Duplicate front door: {}, {}'.format(_front_door, name))
+    _opening_to_device[name] = device
+    _device_to_opening[device] = name
     if shutter:
-        _window_to_shutter[name] = shutter
-        _shutter_to_window[shutter] = name
+        _opening_to_shutter[name] = shutter
+        _shutter_to_opening[shutter] = name
     if rabbit:
-        _window_to_rabbit[name] = rabbit
-        if not rabbit in _rabbit_to_windows:
-            _rabbit_to_windows[rabbit] = []
-        if not name in _rabbit_to_windows[rabbit]:
-            _rabbit_to_windows[rabbit].append(name)
-    logs.debug('Loaded window "{}" (device="{}", shutter="{}", rabbit="{}")'.format(name, device, shutter, rabbit))
-for rabbit in _rabbit_to_windows:
-    logs.debug('Rabbit "{}" has {} window(s): {}'.format(rabbit, len(_rabbit_to_windows[rabbit]), ', '.join(_rabbit_to_windows[rabbit])))
+        _opening_to_rabbit[name] = rabbit
+        if not rabbit in _rabbit_to_openings:
+            _rabbit_to_openings[rabbit] = []
+        if not name in _rabbit_to_openings[rabbit]:
+            _rabbit_to_openings[rabbit].append(name)
+    if is_front_door:
+        _front_door = name
+    logs.debug('Loaded opening "{}" (device="{}", shutter="{}", rabbit="{}", frontdoor="{}")'.format(name, device, shutter, rabbit, is_front_door))
+for rabbit in _rabbit_to_openings:
+    logs.debug('Rabbit "{}" has {} opening(s): {}'.format(rabbit, len(_rabbit_to_openings[rabbit]), ', '.join(_rabbit_to_openings[rabbit])))
 
 # == State API ==
 
-def get_current_state(window: str = None, shutter: str = None) -> WindowState:
+def get_current_state(opening: str = None, shutter: str = None) -> OpenState:
     '''
-    Get current window state by window or shutter name
+    Get current opening state by opening or shutter name
     Returns current state or UNKNOWN if unknown
     '''
-    if (window and shutter) or (not window and not shutter):
-        raise ValueError('Specify exactly one argument: window or shutter')
+    if (opening and shutter) or (not opening and not shutter):
+        raise ValueError('Specify exactly one argument: opening or shutter')
     if shutter:
-        window = get_window_from_shutter(shutter)
+        opening = get_opening_from_shutter(shutter)
         if not shutter:
-            raise ValueError('Unknown window for shutter: {}'.format(shutter))
-    return _window_state.get(shutter, WindowState.UNKNOWN)
+            raise ValueError('Unknown opening for shutter: {}'.format(shutter))
+    return _opening_state.get(shutter, OpenState.UNKNOWN)
 
 # == Data APIs ==
 
-def get_window_from_shutter(shutter: str) -> str:
+def get_opening_from_shutter(shutter: str) -> str:
     '''
-    Get window for the specified shutter
-    Returns window name or None if no window set for the specified shutter
+    Get opening for the specified shutter
+    Returns opening name or None if no opening set for the specified shutter
     '''
-    return _shutter_to_window.get(shutter, None)
+    return _shutter_to_opening.get(shutter, None)
 
-def get_shutter_from_window(window: str) -> str:
+def get_shutter_from_opening(opening: str) -> str:
     '''
-    Get shutter for the specified window
+    Get shutter for the specified opening
     Returns shutter name or None if no shutter set for the specified shutter
     '''
-    return _shutter_to_window.get(window, None)
+    return _shutter_to_opening.get(opening, None)
 
-def get_rabbit_from_window(window: str) -> str:
+def get_rabbit_from_opening(opening: str) -> str:
     '''
     Get rabbit for the specified shutter
     Returns rabbit name or None if no rabbit set for the specified shutter
     '''
-    return _window_to_rabbit.get(window, None)
+    return _opening_to_rabbit.get(opening, None)
 
-def get_windows_from_rabbit(rabbit: str) -> list[str]:
+def get_openings_from_rabbit(rabbit: str) -> list[str]:
     '''
-    Get windows for the specified rabbit
+    Get openings for the specified rabbit
     Returns list of shutters for the specified rabbit, [] if none
     '''
     rabbit = rabbits.get_name(rabbit)
-    return _rabbit_to_windows.get(shutter, [])
+    return _rabbit_to_openings.get(shutter, [])
 
 # == Event API ==
 
 '''
-Window Event Handler
-Callbacks will receive args = (window_name: str, state: WindowState, shutter_name: str = None, rabbit_name: str = None)
+Opening Event Handler
+Callbacks will receive args = (opening_name: str, state: OpenState, shutter_name: str = None, rabbit_name: str = None, is_front_door: bool = False)
 '''
-event_handler = EventHandler('Windows')
+event_handler = EventHandler('Openings')
 
 def _enocean_callback(sender_name: str, contact_event: object):
     '''
@@ -132,12 +139,12 @@ def _enocean_callback(sender_name: str, contact_event: object):
     Find which button of which switch was pressed, and run the associated action.
     '''
     device = 'enocean:{}'.format(sender_name.lower())
-    state = WindowState.CLOSED if contact_event.closed else WindowState.OPEN
+    state = OpenState.CLOSED if contact_event.closed else OpenState.OPEN
 
-    if device in _device_to_window:
-        window = _device_to_window[device]
+    if device in _device_to_opening:
+        opening_name = _device_to_opening[device]
         with _data_lock:
-            _window_state[window] = state
-        event_handler.dispatch(window, state, get_shutter_from_window(window), get_rabbit_from_window(window))
+            _opening_state[opening_name] = state
+        event_handler.dispatch(opening_name, state, get_shutter_from_opening(opening_name), get_rabbit_from_opening(opening_name), opening_name == _front_door)
 
 enocean.contact_event_handler.subscribe(_enocean_callback)

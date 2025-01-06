@@ -32,6 +32,7 @@ Here is a quick list of each module's purpose:
 | [`nabstate.py`](rabbit-home/nabstate.py)           | See rabbits.ini                                             | Monitor and/or change rabbit asleep/awake state.
 | [`nabweb.py`](rabbit-home/nabweb.py)               | See rabbits.ini                                             | Wapper around the [pynab](https://github.com/nabaztag2018/pynab) Web-UI for changing settings and launching weather, air quality and taichi animations.
 | [`notifications.py`](rabbit-home/notifications.py) | [`notifications.ini`](rabbit-home/config/notifications.ini) | Send push notifications on a smartphone using the [Ntfy](https://ntfy.sh/) app.
+| [`openings.py`](rabbit-home/openings.py)           | [`openings.ini`](rabbit-home/config/openings.ini)           | Monitor window/door open/close sensors from enocean.py and generate open/close events for other modules. Manages mappings between shutters, windows and rabbits.
 | [`pcremote.py`](rabbit-home/pcremote.py)           | [`pcremote.ini`](rabbit-home/config/pcremote.ini)           | Wrapper around [Network Remote](https://github.com/ORelio/Network-Remote) client for sending commands to a Windows PC.
 | [`pcstate.py`](rabbit-home/pcstate.py)             | [`pcstate.ini`](rabbit-home/config/pcstate.ini)             | Monitor startup/shutdown of Windows PCs running [System State Webhook](https://github.com/ORelio/System-State-Webhook/) and run actions set in configuration.
 | [`plugs433.py`](rabbit-home/plugs433.py)           | [`plugs433.ini`](rabbit-home/config/plugs433.ini)           | Send ON/OFF commands to 433MHz sockets using a FS1000A module and GPIO (Raspberry Pi).
@@ -45,7 +46,6 @@ Here is a quick list of each module's purpose:
 | [`switches.py`](rabbit-home/switches.py)           | [`switches.ini`](rabbit-home/config/switches.ini)           | Map switch/remote button events from enocean.py to actions set in configuration.
 | [`temperature.py`](rabbit-home/switches.py)        | [`temperature.ini`](rabbit-home/config/temperature.ini)     | Monitor temperature sensors from enocean.py and generate Hot/Cold temperature events for use by scenarios.
 | [`weather.py`](rabbit-home/weather.py)             | See daycycle.ini                                            | Retrieve weather forecast from [meteofrance-api](https://github.com/hacf-fr/meteofrance-api) for the location set in daycycle.ini and make it available to other modules.
-| [`windows.py`](rabbit-home/windows.py)             | [`windows.ini`](rabbit-home/config/windows.ini)             | Monitor window/door open/close sensors from enocean.py and generate open/close events for other modules. Manages mappings between shutters, windows and rabbits.
 
 ### Scenarios
 

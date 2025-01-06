@@ -10,13 +10,13 @@ from threading import Thread, Lock
 from shutters import ShutterState
 from daycycle import DaycycleState
 from temperature import TemperatureEventType
-from windows import WindowState
+from openings import OpenState
 from logs import logs
 
 import rabbits
 import nabstate
 import shutters
-import windows
+import openings
 import daycycle
 import temperature
 import time
@@ -32,12 +32,12 @@ config = ConfigParser(interpolation=None)
 config.read('config/shutters_auto.ini')
 for section in config.sections():
     shutter = config.get(section, 'shutter').lower()
-    window = windows.get_window_from_shutter(shutter)
-    if window:
-        _shutter_to_rabbit[shutter] = windows.get_rabbit_from_window(window)
+    opening = openings.get_opening_from_shutter(shutter)
+    if opening:
+        _shutter_to_rabbit[shutter] = openings.get_rabbit_from_opening(opening)
     else:
         _shutter_to_rabbit[shutter] = None
-        logs.warning('Missing rabbit for shutter: {}. Set mappings in config/windows.ini')
+        logs.warning('Missing rabbit for shutter: {}. Set mappings in config/openings.ini')
     _shutter_to_state[shutter] = dict()
     for day_state in DaycycleState:
         _shutter_to_state[shutter][day_state] = dict()
@@ -98,7 +98,7 @@ def adjust_shutters(current_rabbit: str = None, shutter_name: str = None, overri
             if ((current_rabbit is None or current_rabbit == _shutter_to_rabbit[shutter]) \
               and (override_sleep or not nabstate.is_sleeping(_shutter_to_rabbit[shutter]))):
                 state, percent = _shutter_to_state[shutter][day_state][temp_state]
-                if windows.get_current_state(shutter=shutter) == WindowState.OPEN:
+                if openings.get_current_state(shutter=shutter) == OpenState.OPEN:
                     state = ShutterState.OPEN
                     percent = 0
                 operate(shutter, state, target_half_state=percent)
