@@ -3,11 +3,11 @@
 # ===================================================================================
 # nabstate - remotely monitor and change the sleep/awake state (Nabaztag/tag:tag:tag)
 # Monitoring state works using nabd, changing state is done using nabweb
-# By ORelio (c) 2023-2024 - CDDL 1.0
+# By ORelio (c) 2023-2025 - CDDL 1.0
 # ===================================================================================
 
 from flask import Blueprint, request
-from threading import Lock
+from threading import Thread, Lock
 from typing import Callable
 
 import time
@@ -96,7 +96,15 @@ def initialize(rabbit: str):
 def set_sleeping(rabbit: str, sleeping: bool, play_sound: bool = False):
     '''
     Set Nabaztag sleeping state
+    rabbit: Rabbit to set sleeping or None for all rabbits
+    sleeping: True to set asleep, False to set awake
+    play_sound: True to play sleep/wakeup sound
     '''
+    if rabbit is None:
+        for rabbit in rabbits.get_all():
+            set_sleeping(rabbit, sleeping=sleeping, play_sound=play_sound)
+        return
+
     nabaztag_ip = rabbits.get_ip(rabbit)
 
     # Adjust settings
@@ -157,30 +165,26 @@ State API for webhook clients
 nabstate_api = Blueprint('nabstate_api', __name__)
 
 @nabstate_api.route('/api/v1/nabstate/change')
-def nabstate_api_webhook(rabbit):
+def nabstate_api_webhook():
     '''
     API for changing nabaztag sleep state
     '''
     rabbit = request.args.get('rabbit')
-    sleep = param2bool(request.args.get('sleep').lower() in ['true', '1'] if request.args.get('sleep') else False)
-    sounds = param2bool(request.args.get('sounds').lower() in ['true', '1'] if request.args.get('sounds') else False)
+    sleep = str(request.args.get('sleep')).lower().strip() in ['1', 'true']
+    sounds = str(request.args.get('sounds')).lower().strip() in ['1', 'true']
+    logs.info('Nabstate API call: rabbit={}, sleep={}, sounds={}'.format(rabbit, sleep, sounds))
 
     # Custom argument: Specify Nabaztag IP
-    if rabbit is not None and not rabbits.is_rabbit(rabbit):
+    if rabbit and not rabbits.is_rabbit(rabbit):
         return 'Invalid request', 400
 
-    # No custom argument but request comes from Nabaztag
+    # No rabbit set but request comes from a rabbit: set caller as target
     if rabbit is None and rabbits.is_rabbit(request.remote_addr):
         rabbit = request.remote_addr
 
-    # No custom argument and request does not come from Nabaztag
-    if rabbit is None:
-        for rabbit in rabbits.get_all():
-            nabstate.set_sleeping(rabbit, sleeping=sleep, play_sound=sounds)
+    process_t = Thread(target=set_sleeping, args=[rabbit, sleep, sounds], name='Nabstate API')
+    process_t.start()
 
-    # We got an IP address either as client IP or argument, only change this Nabaztag
-    else:
-        nabstate.set_sleeping(rabbit, sleeping=sleep, play_sound=sounds)
     return 'OK', 200
 
 # Initialize nabstate on first module import
