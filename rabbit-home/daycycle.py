@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
-# ============================================================
-# daycycle - compute day cycle to determine sunrise and sunset
-# By ORelio (c) 2023-2024 - CDDL 1.0
+# ====================================================================
+# daycycle - compute day cycle to determine sunrise, sunset and season
+# By ORelio (c) 2023-2025 - CDDL 1.0
 # Uses https://github.com/skyfielders/python-skyfield
-# ============================================================
+# ====================================================================
 
 from threading import Thread, Lock
 from typing import Callable
@@ -30,6 +30,12 @@ class DaycycleState(Enum):
     EVENING = 5
     NIGHT = 6
 
+class Season(Enum):
+    WINTER = 1
+    SPRING = 2
+    SUMMER = 3
+    AUTUMN = 4
+
 _sunrise_sunset_valid_phases = [
     'Day',
     'Civil twilight',
@@ -38,6 +44,7 @@ _sunrise_sunset_valid_phases = [
 ]
 
 _refresh_lock = Lock()
+_eph_data = skyfield.api.load('de421.bsp')
 
 # Location
 _latitude = 0.0
@@ -136,9 +143,8 @@ def _calculate_day_start_end_for_phase(sunrise_sunset_phase) -> (datetime, datet
     timescale = skyfield.api.load.timescale()
     t_start = timescale.from_datetime(_day_begin)
     t_end = timescale.from_datetime(_day_end)
-    eph = skyfield.api.load('de421.bsp')
     bluffton = skyfield.api.wgs84.latlon(_latitude, _longitude)
-    time_function = skyfield.almanac.dark_twilight_day(eph, bluffton)
+    time_function = skyfield.almanac.dark_twilight_day(_eph_data, bluffton)
     times, events = skyfield.almanac.find_discrete(t_start, t_end, time_function)
     # = Debug - print everything to the console =
     #previous_e = time_function(t_start).item()
@@ -174,6 +180,34 @@ def _calculate_day_start_end() -> (datetime, datetime):
     sunset = sunset_first + (sunset_second - sunset_first) * _sunrise_sunset_offset
     return sunrise, sunset
 
+def _calculate_current_season() -> Season:
+    '''
+    Calculate current season based on current datetime and coordinates
+    '''
+    timezone = tzlocal.get_localzone()
+    date_now = datetime.now(tz=timezone)
+    year_begin = date_now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+    year_end = date_now.replace(month=12, day=31, hour=23, minute=59, second=59, microsecond=999999)
+    timescale = skyfield.api.load.timescale()
+    t_start = timescale.from_datetime(year_begin)
+    t_end = timescale.from_datetime(year_end)
+    t, y = skyfield.almanac.find_discrete(t_start, t_end, skyfield.almanac.seasons(_eph_data))
+    time_equinox_march = t[0].astimezone(timezone)
+    time_solstice_june = t[1].astimezone(timezone)
+    time_equinox_september = t[2].astimezone(timezone)
+    time_solstice_december = t[3].astimezone(timezone)
+    southern_emisphere = _latitude < 0
+    if date_now < time_equinox_march:
+        return Season.SUMMER if southern_emisphere else Season.WINTER
+    elif date_now < time_solstice_june:
+        return Season.AUTUMN if southern_emisphere else Season.SPRING
+    elif date_now < time_equinox_september:
+        return Season.WINTER if southern_emisphere else Season.SUMMER
+    elif date_now < time_solstice_december:
+        return Season.SPRING if southern_emisphere else Season.AUTUMN
+    else:
+        return Season.SUMMER if southern_emisphere else Season.WINTER
+
 def _refresh_calculations():
     '''
     Refresh internal sunrise and sunset time
@@ -186,6 +220,7 @@ def _refresh_calculations():
     global _late_afternoon
     global _evening
     global _sunset
+    global _season
     with _refresh_lock:
         current_date = datetime.now().strftime('%Y-%m-%d')
         if current_date != _last_calculation_date:
@@ -195,12 +230,14 @@ def _refresh_calculations():
             _noon = _sunrise + (_sunset - _sunrise) * _noon_offset
             _late_afternoon = _sunrise + (_sunset - _sunrise) * _late_afternoon_offset
             _evening = _sunrise + (_sunset - _sunrise) * _evening_offset
+            _season = _calculate_current_season()
             logs.info('Computed sunrise: ' + str(_sunrise))
             logs.info('Computed late morning: ' + str(_late_morning))
             logs.info('Computed noon: ' + str(_noon))
             logs.info('Computed late afternoon: ' + str(_late_afternoon))
             logs.info('Computed evening: ' + str(_evening))
             logs.info('Computed sunset: ' + str(_sunset))
+            logs.info('Computed season: ' + _season.name)
 
 def get_datetime_now() -> datetime:
     '''
@@ -291,6 +328,12 @@ def get_state(date_time=None) -> DaycycleState:
     if date_time >= evening and date_time < sunset:
         return DaycycleState.EVENING
     return DaycycleState.NIGHT
+
+def get_season() -> Season:
+    '''
+    Get current season
+    '''
+    return _season
 
 '''
 Daycycle Event Handler
