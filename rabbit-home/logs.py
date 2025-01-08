@@ -8,6 +8,7 @@
 import sys
 import logging
 import threading
+import traceback
 
 from configparser import ConfigParser
 
@@ -17,6 +18,7 @@ config = ConfigParser()
 config.read('config/logs.ini')
 file_name = config.get('Logs', 'File', fallback=None)
 log_level = config.get('Logs', 'Level').upper()
+push_exceptions = config.getboolean('Logs', 'PushExceptions', fallback=False)
 
 # Initialize logging file
 
@@ -47,6 +49,9 @@ def exception_handler(exc_type, exc_value, exc_traceback):
         sys.__excepthook__(exc_type, exc_value, exc_traceback)
         return
     logs.critical('Uncaught exception', exc_info=(exc_type, exc_value, exc_traceback))
+    if push_exceptions:
+        import notifications
+        notifications.publish(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), title='Un bug !', tags='bug')
 sys.excepthook = exception_handler
 
 # Log uncaught exceptions from threads
@@ -54,6 +59,9 @@ sys.excepthook = exception_handler
 def thread_exception_handler(exc_data):
     exc_type, exc_value, exc_traceback, thread = exc_data
     logs.critical('Uncaught exception in thread "{}"'.format(thread.name), exc_info=(exc_type, exc_value, exc_traceback))
+    if push_exceptions:
+        import notifications
+        notifications.publish('{}: {}'.format(thread.name, ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))), title='Un bug !', tags='bug')
 threading.excepthook = thread_exception_handler
 
 # == Usage ==
