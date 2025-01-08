@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 
-# ======================================================================================
-# shutters_auto - automatically adjust shutters depending on time of day and temperature
+# ==========================================================================================
+# shutters_auto - automatically adjust shutters depending on time of day, season and weather
 # By ORelio (c) 2023-2024 - CDDL 1.0
-# ======================================================================================
+# ==========================================================================================
 
 from configparser import ConfigParser
 from threading import Thread, Lock
+
 from shutters import ShutterState
-from daycycle import DaycycleState
+from daycycle import DaycycleState, Season
 from temperature import TemperatureEventType
 from openings import OpenState
 from logs import logs
@@ -21,8 +22,141 @@ import daycycle
 import temperature
 import time
 
+# == Shutter presets parsing and handling ==
+
+class ShutterPreset:
+    '''
+    Represents a shutter preset mapping shutter state to specific conditions
+    '''
+    # Settings
+    state: ShutterState
+    percent: int
+
+    # Conditions
+    dayphase: DaycycleState
+    season: Season
+    temp: TemperatureEventType
+
+    def __init__(self, config_key: str, config_val: str):
+        '''
+        Initialize a new shutter preset based on config file entry
+        '''
+        if not config_key.lower().startswith('state'):
+            raise ValueError('Invalid config key for ShutterPreset: {}'.format(config_key))
+
+        # Determine desired state
+        state = None
+        percent = None
+        if config_val.endswith('%'):
+            state = ShutterState.HALF
+            percent = int(config_val.strip('%'))
+            if percent <= 0:
+                state = ShutterState.OPEN
+                percent = None
+            if percent >= 100:
+                state = ShutterState.CLOSE
+                percent = None
+        else:
+            state = ShutterState[config_val.upper()]
+
+        # Determine conditions
+        dayphase = None
+        season = None
+        temp = None
+        for condition in config_key.split('.'):
+            condition = condition.upper()
+            if condition == 'STATE':
+                pass
+            elif condition in [item.name for item in DaycycleState]:
+                dayphase = DaycycleState[condition]
+            elif condition in [item.name for item in Season]:
+                season = Season[condition]
+            elif condition in [item.name for item in TemperatureEventType] and condition != 'DATA':
+                temp = TemperatureEventType[condition]
+            else:
+                raise ValueError('Unknown shutter preset condition: {}'.format(condition))
+
+        # Initialize preset data
+        self.state = state
+        self.percent = percent
+        self.dayphase = dayphase
+        self.season = season
+        self.temp = temp
+
+    def __str__(self) -> str:
+        '''
+        String representation of the preset
+        '''
+        return 'ShutterPreset(state={}, percent={}, dayphase={}, season={}, temp={})'.format(
+            self.state.name if self.state else None,
+            self.percent,
+            self.dayphase.name if self.dayphase else None,
+            self.season.name if self.season else None,
+            self.temp.name if self.temp else None
+        )
+
+    def matches(self, dayphase: DaycycleState, season: Season, temp: TemperatureEventType):
+        '''
+        Check if the preset matches the specified conditions, unset condition being catch-all
+        '''
+        return (not self.dayphase or self.dayphase == dayphase) \
+           and (not self.season or self.season == season) \
+           and (not self.temp or self.temp == temp)
+
+    def weight(self) -> int:
+        '''
+        Amount of criteria in the preset
+        '''
+        w = 0
+        if self.dayphase:
+            w += 1
+        if self.season:
+            w += 1
+        if self.temp:
+            w += 1
+        return w
+
+    def __lt__(self, other) -> bool:
+        '''
+        Sort presets by weight then priority
+        '''
+        # more criteria > less criteria
+        if self.weight() < other.weight():
+            return True
+        if self.weight() > other.weight():
+            return False
+
+        # temperature > season > dayphase
+        if not self.temp and other.temp:
+            return True
+        if self.temp and not other.temp:
+            return False
+        if not self.season and other.season:
+            return True
+        if self.season and not other.season:
+            return False
+        if not self.dayphase and other.dayphase:
+            return True
+        if self.dayphase and not other.dayphase:
+            return False
+
+        # Seems like both are equal, should not happen unless configuration file had ambiguous entries
+        raise ValueError('Priority conflict between {} and {}'.format(self, other))
+
+    def find_most_appropriate(presets: list, dayphase: DaycycleState, season: Season, temp: TemperatureEventType) -> 'ShutterPreset':
+        '''
+        For the specified list of presets, find the one matching the specified conditions most closely.
+        '''
+        if len(presets) > 0:
+            matching = [item for item in presets if item.matches(dayphase, season, temp)]
+            matching.sort(reverse=True)
+            return matching[0]
+        return None
+
+# == Load configuration ==
+
 _shutter_to_rabbit = dict()
-_shutter_to_state = dict()
+_shutter_to_presets = dict()
 
 _defective_shutter = dict()
 _defective_shutter_lock = dict()
@@ -38,32 +172,23 @@ for section in config.sections():
     else:
         _shutter_to_rabbit[shutter] = None
         logs.warning('Missing rabbit for shutter: {}. Set mappings in config/openings.ini')
-    _shutter_to_state[shutter] = dict()
-    for day_state in DaycycleState:
-        _shutter_to_state[shutter][day_state] = dict()
-        for temp_type in TemperatureEventType:
-            if temp_type != TemperatureEventType.DATA:
-                setting_key = 'state.{}.{}'.format(day_state.name.lower(), temp_type.name.lower())
-                desired_state = config.get(section, setting_key)
-                desired_percent = None
-                if desired_state.endswith('%'):
-                    desired_percent = int(desired_state.strip('%'))
-                    desired_state = ShutterState.HALF
-                    if desired_percent <= 0:
-                        desired_state = ShutterState.OPEN
-                        desired_percent = None
-                    if desired_percent >= 100:
-                        desired_state = ShutterState.CLOSE
-                        desired_percent = None
-                else:
-                    desired_state = ShutterState[desired_state.upper()]
-                _shutter_to_state[shutter][day_state][temp_type] = (desired_state, desired_percent)
+    if shutter in _shutter_to_presets:
+        raise ValueError('Duplicate shutter "{}"'.format(shutter))
+    _shutter_to_presets[shutter] = list()
+    logs.debug('Loading presets for "{}":'.format(shutter))
+    for (key, val) in config.items(section):
+        if key.lower().startswith('state'):
+            preset = ShutterPreset(key, val)
+            logs.debug('[{}/{}] {}'.format(shutter, key, preset))
+            _shutter_to_presets[shutter].append(preset)
     _defective_shutter[shutter] = config.getboolean(section, 'defective', fallback=False)
     if _defective_shutter[shutter]:
         _defective_shutter_lock[shutter] = Lock()
         _defective_shutter_token[shutter] = 0
 logs.debug('Loaded {} shutters: {}'.format(
-    len(_shutter_to_state), ', '.join(list(_shutter_to_state.keys()))))
+    len(_shutter_to_presets), ', '.join(list(_shutter_to_presets.keys()))))
+
+# == API and event handlers ==
 
 def _can_operate(current_rabbit: str, desired_rabbit: str, override_sleep) -> bool:
     '''
@@ -83,25 +208,26 @@ def adjust_shutters(current_rabbit: str = None, shutter_name: str = None, overri
     shutter_name: Limit operation to the specified shutter
     override_sleep: Allow operation EVEN IF the rabbits are sleeping
     '''
-    day_state = daycycle.get_state()
+    dayphase = daycycle.get_state()
+    season = daycycle.get_season()
     temp_state = temperature.get_state_outside()
     if current_rabbit:
         current_rabbit = rabbits.get_name(current_rabbit)
 
-    logs.info('Moving shutter{}: daycycle={}, temperature={}, rabbit={}'.format(
+    logs.info('Moving shutter{}: dayphase={}, season={}, temperature={}, rabbit={}'.format(
         ' {}'.format(shutter_name) if shutter_name else 's',
-        day_state.name, temp_state.name, current_rabbit)
+        dayphase.name, season.name, temp_state.name, current_rabbit)
     )
 
-    for shutter in _shutter_to_state:
+    for shutter in _shutter_to_presets:
         if shutter_name is None or shutter == shutter_name:
             if ((current_rabbit is None or current_rabbit == _shutter_to_rabbit[shutter]) \
-              and (override_sleep or not nabstate.is_sleeping(_shutter_to_rabbit[shutter]))):
-                state, percent = _shutter_to_state[shutter][day_state][temp_state]
-                if openings.get_current_state(shutter=shutter) == OpenState.OPEN:
-                    state = ShutterState.OPEN
-                    percent = 0
-                operate(shutter, state, target_half_state=percent)
+              and (override_sleep or not nabstate.is_sleeping(_shutter_to_rabbit[shutter]))) \
+              and openings.get_current_state(shutter=shutter) != OpenState.OPEN:
+                preset = ShutterPreset.find_most_appropriate(_shutter_to_presets[shutter], dayphase=dayphase, season=season, temp=temp_state)
+                logs.debug('Selected preset for {}: {}'.format(shutter, preset))
+                if preset:
+                    operate(shutter, preset.state, target_half_state=preset.percent)
 
 def _operate_defective_from_thread(shutter: str, state: ShutterState, target_half_state: int, thread_token: int):
     '''
@@ -171,7 +297,7 @@ def operate(shutter: str, state: ShutterState, target_half_state = None, direct_
     # Operate all shutters at once?
     if shutter == 'all':
         success = True
-        for shutter in _shutter_to_state:
+        for shutter in _shutter_to_presets:
             success = success and operate(shutter, state, target_half_state)
         return success
 
