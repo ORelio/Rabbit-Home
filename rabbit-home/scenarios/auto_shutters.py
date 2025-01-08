@@ -2,7 +2,7 @@
 
 # ===============================================================================
 # Auto Shutters Scenario - Automatically adjust shutters depending on time of day
-# By ORelio (c) 2023-2024 - CDDL 1.0
+# By ORelio (c) 2023-2025 - CDDL 1.0
 # ===============================================================================
 
 from scenarios import Event, subscribe, unsubscribe
@@ -27,6 +27,6 @@ def run(event: Event, rabbit: str = None, args: dict = {}):
     shutters_auto.adjust_shutters()
 
 def window(event: Event, rabbit: str = None, args: dict = {}):
-    if 'state' in args and 'shutter' in args:
+    if 'state' in args and 'shutter' in args and args['shutter']:
         logs.info('Readjusting shutter for window open/close event: {}, {}'.format(args['shutter'], args['state'].name))
         shutters_auto.adjust_shutters(shutter_name=args['shutter'])
