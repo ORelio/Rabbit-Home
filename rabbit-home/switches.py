@@ -102,3 +102,4 @@ def _enocean_callback(sender_name: str, switch_or_button_event: object):
 
 enocean.switch_event_handler.subscribe(_enocean_callback)
 enocean.button_event_handler.subscribe(_enocean_callback)
+enocean.contact_event_handler.subscribe(_enocean_callback)

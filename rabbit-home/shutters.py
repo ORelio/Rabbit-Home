@@ -33,6 +33,7 @@ class ShutterState(Enum):
     CLOSE = 2
     STOP = 3
     HALF = 4
+    AUTO = 5
 
 _shutter_state_to_command = {
     ShutterState.OPEN: 'on',
@@ -280,6 +281,9 @@ def operate(shutter: str, state: ShutterState, target_half_state = None) -> bool
     shutter = shutter.lower()
     if not shutter in _shutters:
         raise ValueError('Unknown shutter: ' + str(shutter))
+
+    if state == ShutterState.AUTO:
+        raise ValueError('State "AUTO" is supported through shutters_auto.operate()')
 
     with _shutter_locks[shutter]:
         thread_token = round(time.time() * 1000)

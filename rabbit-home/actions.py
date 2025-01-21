@@ -41,6 +41,7 @@ def str2action(action: str, setting_name: str = None) -> 'Action':
      ([text in brackets] means optional part in action data)
      (a|b means use one of the specified values a OR b)
      shutter_name can be several shutters: shutterone+shuttertwo
+     shutter operation can be open/close/stop/half/auto (see shutters.py). 'auto' only works with shutters_auto.
      omitting rabbit_name is possible for rabbit-related events such as rfid
     '''
     if not setting_name:

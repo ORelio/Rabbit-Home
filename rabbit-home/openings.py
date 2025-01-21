@@ -139,7 +139,7 @@ def _enocean_callback(sender_name: str, contact_event: object):
     Find which button of which switch was pressed, and run the associated action.
     '''
     device = 'enocean:{}'.format(sender_name.lower())
-    state = OpenState.CLOSED if contact_event.closed else OpenState.OPEN
+    state = OpenState.CLOSED if contact_event.close else OpenState.OPEN
 
     if device in _device_to_opening:
         opening_name = _device_to_opening[device]

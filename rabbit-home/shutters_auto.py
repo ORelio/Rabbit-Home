@@ -58,6 +58,8 @@ class ShutterPreset:
                 percent = None
         else:
             state = ShutterState[config_val.upper()]
+            if state == ShutterState.AUTO:
+                raise ValueError('Cannot use state AUTO in shutter preset')
 
         # Determine conditions
         dayphase = None
@@ -208,26 +210,14 @@ def adjust_shutters(current_rabbit: str = None, shutter_name: str = None, overri
     shutter_name: Limit operation to the specified shutter
     override_sleep: Allow operation EVEN IF the rabbits are sleeping
     '''
-    dayphase = daycycle.get_state()
-    season = daycycle.get_season()
-    temp_state = temperature.get_state_outside()
     if current_rabbit:
         current_rabbit = rabbits.get_name(current_rabbit)
-
-    logs.info('Moving shutter{}: dayphase={}, season={}, temperature={}, rabbit={}'.format(
-        ' {}'.format(shutter_name) if shutter_name else 's',
-        dayphase.name, season.name, temp_state.name, current_rabbit)
-    )
-
     for shutter in _shutter_to_presets:
         if shutter_name is None or shutter == shutter_name:
             if ((current_rabbit is None or current_rabbit == _shutter_to_rabbit[shutter]) \
               and (override_sleep or not nabstate.is_sleeping(_shutter_to_rabbit[shutter]))) \
               and openings.get_current_state(shutter=shutter) != OpenState.OPEN:
-                preset = ShutterPreset.find_most_appropriate(_shutter_to_presets[shutter], dayphase=dayphase, season=season, temp=temp_state)
-                logs.debug('Selected preset for {}: {}'.format(shutter, preset))
-                if preset:
-                    operate(shutter, preset.state, target_half_state=preset.percent)
+                operate(shutter, ShutterState.AUTO)
 
 def _operate_defective_from_thread(shutter: str, state: ShutterState, target_half_state: int, thread_token: int):
     '''
@@ -301,8 +291,20 @@ def operate(shutter: str, state: ShutterState, target_half_state = None, direct_
             success = success and operate(shutter, state, target_half_state)
         return success
 
+    # Auto determine state using presets?
+    if state == ShutterState.AUTO:
+        dayphase = daycycle.get_state()
+        season = daycycle.get_season()
+        temp_state = temperature.get_state_outside()
+        preset = ShutterPreset.find_most_appropriate(_shutter_to_presets[shutter], dayphase=dayphase, season=season, temp=temp_state)
+        logs.info('Auto-Selected state for shutter={}, dayphase={}, season={}, temperature={}: {}'.format(shutter, dayphase.name, season.name, temp_state.name, preset))
+        if preset is None:
+            return False
+        state = preset.state
+        target_half_state = preset.percent
+
     # Operate a shutter that may block itself askew?
-    elif _defective_shutter[shutter]:
+    if _defective_shutter[shutter]:
         # Neutralize any running thread for defective shutter
         _defective_shutter_token[shutter] = round(time.time() * 1000)
         if direct_command:

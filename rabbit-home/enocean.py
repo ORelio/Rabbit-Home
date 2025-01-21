@@ -118,7 +118,8 @@ class ButtonEvent():
 
 @dataclass
 class ContactEvent:
-    closed: bool
+    open: bool
+    close: bool
 
 @dataclass
 class TemperatureEvent():
@@ -368,7 +369,7 @@ def decode_1bs_packet(sender_id: str, user_data: bytes):
         else:
             if is_profile(sender_id, EnoceanProfile.D5_00_01):
                 contact_closed = get_bit(user_data[0], 7)
-                _dispatch_event(contact_event_handler, sender_id, ContactEvent(contact_closed))
+                _dispatch_event(contact_event_handler, sender_id, ContactEvent(not contact_closed, contact_closed))
 
 def decode_4bs_packet(sender_id: str, user_data: bytes):
     '''
