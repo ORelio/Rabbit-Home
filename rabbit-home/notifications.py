@@ -26,7 +26,7 @@ rabbits_as_topic = config.getboolean('Notifications', 'rabbits_as_topic', fallba
 if not service_url.endswith('/'):
     service_url = service_url + '/'
 
-def _publish(message, title=None, priority=None, tags=None, rabbit=None):
+def _publish(message, title=None, priority=None, tags=None, rabbit=None, auto_trim=True):
     if not enabled:
         raise AssertionError('Calling _publish() but "enabled" is set to "False" in config')
 
@@ -47,10 +47,14 @@ def _publish(message, title=None, priority=None, tags=None, rabbit=None):
     if tags:
         headers['Tags'] = tags
 
-    resp = requests.post(service_url + topic, data=message.encode(encoding='utf-8'), headers=headers)
+    message = message.encode(encoding='utf-8')
+    if auto_trim and len(message) > 4095:
+        message = message[:4092] + '...'.encode('utf-8')
+
+    resp = requests.post(service_url + topic, data=message, headers=headers)
     resp.raise_for_status()
 
-def publish(message, title=None, priority=None, tags=None, rabbit=None, synchronous=False):
+def publish(message, title=None, priority=None, tags=None, rabbit=None, synchronous=False, auto_trim=True):
     '''
     Publish a phone notification using ntfy
     message: Notification message
@@ -58,11 +62,13 @@ def publish(message, title=None, priority=None, tags=None, rabbit=None, synchron
     priority: (optional) Priority as per https://docs.ntfy.sh/publish/#message-priority
     tags: (optional) Comma-separated emoji names as per https://docs.ntfy.sh/emojis/
     rabit: (optional) Rabbit related to the notification
+    synchronous: (optional) Wait for server to accept message before returning
+    auto_trim: (optional) Auto trim long messages to fit in size limit. Beyond the limit, server will auto-convert long messages to attachments.
     '''
     logs.info('{}: {} (title: {}, priority: {}, tags: {}, rabbit: {})'.format('Publishing' if enabled else 'Would publish if enabled', message, title, priority, tags, rabbit))
     if enabled:
         if synchronous:
-            _publish(message, title=title, priority=priority, tags=tags, rabbit=rabbit)
+            _publish(message, title=title, priority=priority, tags=tags, rabbit=rabbit, auto_trim=auto_trim)
         else:
-            _request_thread = Thread(target=_publish, args=[message], kwargs={'title': title, 'priority': priority, 'tags':tags, 'rabbit': rabbit }, name='Ntfy request')
+            _request_thread = Thread(target=_publish, args=[message], kwargs={'title': title, 'priority': priority, 'tags':tags, 'rabbit': rabbit, 'auto_trim': auto_trim }, name='Ntfy request')
             _request_thread.start()
