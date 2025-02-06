@@ -14,6 +14,7 @@ from shutters import ShutterState
 import shutters
 import shutters_auto
 import plugs433
+import lights
 import nabstate
 import nabweb
 
@@ -31,6 +32,7 @@ def str2action(action: str, setting_name: str = None) -> 'Action':
      scenario:scenario_name[:{"arg1":"value", "arg2:"value"}]
      shutter:shutter_name:operation[/operation_on_release_long_press]
      plug:plug_name:on|off[/on|off <- operation_on_release_long_press]
+     light:light_name:on|off[/brightness=XX][/white=XX][/transition=XXX]
      webhook:url <- example: http://example.com/?mywebhook
      sleep[:rabbit_name]
      weather[:rabbit_name]
@@ -41,6 +43,9 @@ def str2action(action: str, setting_name: str = None) -> 'Action':
      ([text in brackets] means optional part in action data)
      (a|b means use one of the specified values a OR b)
      shutter_name can be several shutters: shutterone+shuttertwo
+     plug_name can be several plugs: plugone+plugtwo
+     light_name can be several lights: lightone+lighttwo
+     light brightness/white/transition are optional
      shutter operation can be open/close/stop/half/auto (see shutters.py). 'auto' only works with shutters_auto.
      omitting rabbit_name is possible for rabbit-related events such as rfid
     '''
@@ -63,6 +68,8 @@ def str2action(action: str, setting_name: str = None) -> 'Action':
         return ShutterAction(action_name, action_data)
     elif action_type == 'plug':
         return PlugAction(action_name, action_data)
+    elif action_type == 'light':
+        return LightAction(action_name, action_data)
     elif action_type == 'webhook':
         return WebhookAction(action_name_and_data, None)
     elif action_type == 'sleep':
@@ -141,7 +148,7 @@ class PlugAction(Action):
     Turn ON or OFF a power socket
     '''
     def __init__(self, name: str, data: str = None):
-        self.plug = name
+        self.plugs = name.split('+')
         if data is None:
             raise ValueError('PlugAction: Missing state for "{}"'.format(name))
         states = data.split('/')
@@ -156,11 +163,47 @@ class PlugAction(Action):
     def run(self, event_type = None, rabbit = None, secondary_action: bool = False):
         if secondary_action:
             if self.state_long is not None:
-                plugs433.switch(self.plug, self.state_long)
+                for plug in self.plugs:
+                    plugs433.switch(plug, self.state_long)
         else:
-            plugs433.switch(self.plug, self.state)
+            for plug in self.plugs:
+                plugs433.switch(plug, self.state)
     def __repr__(self):
-        return 'PlugAction(Plug: {}, State: {}, StateReleaseLong: {})'.format(self.plug, self.state, self.state_long)
+        return 'PlugAction(Plug: {}, State: {}, StateReleaseLong: {})'.format(', '.join(self.plugs), self.state, self.state_long)
+
+class LightAction(Action):
+    '''
+    Turn ON/OFF or adjust lights
+    '''
+    def __init__(self, name: str, data: str = None):
+        self.lights = name.split('+')
+        if data is None:
+            raise ValueError('LightAction: Missing state for "{}"'.format(name))
+        state_data = data.split('/')
+        self.state = state_data[0].lower()
+        self.brightness = None
+        self.white = None
+        self.transition = None
+        if self.state not in ['on', 'off']:
+            raise ValueError('LightAction: Missing or invalid state for "{}", got "{}"'.format(name, self.state))
+        for option in state_data[1:]:
+            name = option.split('=')[0].lower()
+            val = option[len(name) + 1:]
+            if name == 'brightness':
+                self.brightness = int(val)
+            elif name == 'white':
+                self.white = int(val)
+            elif name == 'transition':
+                self.transition = int(val)
+            else:
+                raise ValueError('LightAction: Got unknown option "{}"'.format(option))
+    def run(self, event_type = None, rabbit = None, secondary_action: bool = False):
+        if not secondary_action:
+            for light in self.lights:
+                lights.switch(light, on=(self.state == 'on'), brightness=self.brightness, white=self.white, transition=self.transition)
+    def __repr__(self):
+        return 'LightAction(Light: {}, State: {}, Brightness: {}, White: {}, Transition: {})'.format(
+          ', '.join(self.lights), self.state, self.brightness, self.white, self.transition)
 
 class WebhookAction(Action):
     '''
