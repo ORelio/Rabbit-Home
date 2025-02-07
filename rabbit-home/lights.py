@@ -5,7 +5,7 @@
 # By ORelio (c) 2025 - CDDL 1.0
 # ========================================================
 
-from threading import Thread
+from threading import Thread, Lock
 from configparser import ConfigParser
 
 import json
@@ -20,6 +20,9 @@ _lights = {}
 _default_brightness = {}
 _default_white = {}
 _default_transition = {}
+
+_command_locks = {}
+_command_tokens = {}
 
 config = ConfigParser()
 config.read('config/lights.ini')
@@ -52,6 +55,8 @@ for light_name_raw in config.sections():
     _default_brightness[light_name] = light_brightness
     _default_white[light_name] = light_white
     _default_transition[light_name] = light_transition
+    _command_locks[light_name] = Lock()
+    _command_tokens[light_name] = 0;
     logs.debug('Loaded light "{}" (IP={}, Brightness={}, White={}, TransitionMs={})'.format(
         light_name,
         light_ip,
@@ -70,10 +75,11 @@ def _api_request(light: str, api_endpoint: str, parameters: dict = None, retries
     retries: (optional) Amount of HTTP request retries. Nabaztag webserver may be slow on first request.
     returns API response
     '''
+    light = light.lower()
     if not light in _lights:
         raise ValueError('Unknown light: {}'.format(light))
-    ip = _lights[light]
     try:
+        ip = _lights[light]
         url = f"http://{ip}/{api_endpoint}"
         return json.loads(requests.get(url, params=parameters).text)
     except requests.exceptions.ConnectionError:
@@ -82,14 +88,18 @@ def _api_request(light: str, api_endpoint: str, parameters: dict = None, retries
             raise
         return _api_request(light, api_endpoint, parameters, retries - 1)
 
-def _switch(light: str, on: bool = False, brightness: int = None, white: int = None, transition: int = None) -> bool:
+def _switch(thread_token: int, light: str, on: bool = False, brightness: int = None, white: int = None, transition: int = None, delay: int = None, delay_off: int = None):
+    '''
+    Switch a light (internal). See switch()
+    thread_token: Allows cancelling a delayed on/off operations by updating the token.
+    '''
     light = light.lower()
     if not light in _lights:
         raise ValueError('Unknown light: {}'.format(light))
 
-    if not white:
+    if white is None:
         white = _default_white[light]
-    if not transition:
+    if transition is None:
         transition = _default_transition[light]
 
     if brightness is not None:
@@ -104,29 +114,35 @@ def _switch(light: str, on: bool = False, brightness: int = None, white: int = N
         raise ValueError('Missing desired state: "on" or "brightness"')
 
     arguments = {'turn': 'on' if on else 'off'}
-    if brightness:
+    if brightness is not None:
         arguments['brightness'] = str(brightness)
-    if on:
+    if white is not None:
         arguments['white'] = str(white)
 
     logs.info('Adjusting {}: on={}, brightness={}, white={}, transition={}'.format(
         light, on, brightness, white, transition))
 
-    try:
-        original_transition = _api_request(light, API_SETTINGS)['transition']
-        if original_transition != transition:
-            _api_request(light, API_SETTINGS, {'transition': str(transition)})
-        _api_request(light, API_SWITCH, arguments)
-        if original_transition != transition:
-            time.sleep(transition/1000) # wait for transition to finish playing before restoring it
-            _api_request(light, API_SETTINGS, {'transition': str(original_transition)})
-        return True
-    except requests.exceptions.ConnectionError:
-        logs.warning('Failed to connect to light "{}"'.format(light))
-        notifications.publish("L'éclairage '{}' n'a pas répondu".format(light), title='Eclairage injoignable', tags='electric_plug,bulb')
-        return False
+    if delay:
+        time.sleep(delay/1000)
 
-def switch(light: str, on: bool = False, brightness: int = None, white: int = None, transition: int = None, synchronous=False) -> bool:
+    with _command_locks[light]:
+        try:
+            if _command_tokens.get(light, 0) == thread_token:
+                original_transition = _api_request(light, API_SETTINGS)['transition']
+                if original_transition != transition:
+                    _api_request(light, API_SETTINGS, {'transition': str(transition)})
+                _api_request(light, API_SWITCH, arguments)
+                if original_transition != transition:
+                    time.sleep(transition/1000) # wait for transition to finish playing before restoring it
+                    _api_request(light, API_SETTINGS, {'transition': str(original_transition)})
+        except requests.exceptions.ConnectionError:
+            logs.warning('Failed to connect to light "{}"'.format(light))
+            notifications.publish("L'éclairage '{}' n'a pas répondu".format(light), title='Eclairage injoignable', tags='electric_plug,bulb')
+
+    if delay_off is not None:
+        _switch(thread_token, light, on=False, transition=transition, delay=delay_off)
+
+def switch(light: str, on: bool = False, brightness: int = None, white: int = None, transition: int = None, delay: int = None, delay_off: int = None, synchronous: bool = False):
     '''
     Switch a light
     light: Name of light to operate
@@ -134,11 +150,23 @@ def switch(light: str, on: bool = False, brightness: int = None, white: int = No
     brightness: Desired brightness [0-100], default set in config
     white: Desired warmness from 0 (warm) to 100 (cold), default set in config
     transition: transition delay from 0ms (immediate) to 5000ms (5 seconds), default set in config
+    delay: delay before switching the light from 0ms (immediate) to any value in milliseconds, default 0ms
+    delay_off: timeout delay before auto-switching the light off, from None (never) to any value in milliseconds, default Never
     synchronous: Wait for light to finish switching before returning
     '''
+    light = light.lower()
+    if not light in _lights:
+        raise ValueError('Unknown light: {}'.format(light))
+
+    with _command_locks[light]:
+        thread_token = round(time.time() * 1000)
+        _command_tokens[light] = thread_token
+
     if synchronous:
-        return _switch(light, on=on, brightness=brightness, white=white, transition=transition)
+        _switch(thread_token, light, on=on, brightness=brightness, white=white, transition=transition, delay=delay, delay_off=delay_off)
     else:
-        _switch_thread = Thread(target=_switch, args=[light], kwargs={'on': on, 'brightness': brightness, 'white':white, 'transition': transition }, name='Switching Light')
+        _switch_thread = Thread(target=_switch,
+            args=[thread_token, light],
+            kwargs={'on': on, 'brightness': brightness, 'white':white, 'transition': transition, 'delay': delay, 'delay_off': delay_off },
+            name='Switching Light')
         _switch_thread.start()
-        return True
