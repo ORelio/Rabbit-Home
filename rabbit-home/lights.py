@@ -88,6 +88,16 @@ def _api_request(light: str, api_endpoint: str, parameters: dict = None, retries
             raise
         return _api_request(light, api_endpoint, parameters, retries - 1)
 
+def _sleep(thread_token: int, light: str, delay_milliseconds: int):
+    '''
+    Sleep for the specified delay but stop early if the token changed
+    Note: The sleep delay resolution is 100ms rounded to the upper unit, e.g, 50ms is rounded to 100ms and so on.
+    '''
+    if delay_milliseconds > 0:
+        for i in range(0, delay_milliseconds, 100):
+            if _command_tokens.get(light, 0) == thread_token:
+                time.sleep(0.1)
+
 def _switch(thread_token: int, light: str, on: bool = False, brightness: int = None, white: int = None, transition: int = None, delay: int = None, delay_off: int = None):
     '''
     Switch a light (internal). See switch()
@@ -123,18 +133,26 @@ def _switch(thread_token: int, light: str, on: bool = False, brightness: int = N
         light, on, brightness, white, transition))
 
     if delay:
-        time.sleep(delay/1000)
+        _sleep(thread_token, light, delay)
 
     with _command_locks[light]:
         try:
             if _command_tokens.get(light, 0) == thread_token:
+
+                # Temporarily update the light transition setting if needed
                 original_transition = _api_request(light, API_SETTINGS)['transition']
                 if original_transition != transition:
                     _api_request(light, API_SETTINGS, {'transition': str(transition)})
-                _api_request(light, API_SWITCH, arguments)
+
+                # Switch light to desired brightness and color
+                if _command_tokens.get(light, 0) == thread_token:
+                    _api_request(light, API_SWITCH, arguments)
+
+                # Wait for transition to finish playing before restoring it
                 if original_transition != transition:
-                    time.sleep(transition/1000) # wait for transition to finish playing before restoring it
+                    _sleep(thread_token, light, transition)
                     _api_request(light, API_SETTINGS, {'transition': str(original_transition)})
+
         except requests.exceptions.ConnectionError:
             logs.warning('Failed to connect to light "{}"'.format(light))
             notifications.publish("L'éclairage '{}' n'a pas répondu".format(light), title='Eclairage injoignable', tags='electric_plug,bulb')
