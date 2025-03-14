@@ -2,7 +2,7 @@
 
 # ====================================================================
 # Sleep mode - Close shutters and put rabbit(s) to sleep using a ztamp
-# By ORelio (c) 2023-2024 - CDDL 1.0
+# By ORelio (c) 2023-2025 - CDDL 1.0
 # ====================================================================
 
 from scenarios import Event, subscribe, unsubscribe
@@ -28,13 +28,10 @@ def run(event: Event, rabbit: str = None, args: dict = {}):
     if (event == Event.API or event == Event.RFID) and rabbit is not None:
         rabbit = rabbits.get_name(rabbit)
         logs.info('Sleep: {}'.format(rabbit))
-        if daycycle.is_night():
-            shutters_auto.operate('shutterone', ShutterState.CLOSE)
-            shutters_auto.operate('shuttertwo', ShutterState.CLOSE)
-        else:
-            shutters_auto.operate('shuttertwo', ShutterState.CLOSE)
+        shutters_auto.adjust_shutters(current_rabbit=rabbit, state=ShutterState.CLOSE, override_sleep=True)
+        lights.switch_for_rabbit(rabbit=rabbit, on=False)
         sleeping[rabbit] = True
-        nabstate.set_sleeping(rabbit, True, True)
+        nabstate.set_sleeping(rabbit, sleeping=True, play_sound=True)
     else:
         logs.error('Invalid arguments')
 

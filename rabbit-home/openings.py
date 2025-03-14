@@ -123,7 +123,7 @@ def get_openings_from_rabbit(rabbit: str) -> list[str]:
     Returns list of shutters for the specified rabbit, [] if none
     '''
     rabbit = rabbits.get_name(rabbit)
-    return _rabbit_to_openings.get(shutter, [])
+    return _rabbit_to_openings.get(rabbit, [])
 
 # == Event API ==
 

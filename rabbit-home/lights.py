@@ -15,6 +15,7 @@ import time
 from logs import logs
 
 import notifications
+import rabbits
 
 _lights = {}
 _default_brightness = {}
@@ -23,6 +24,8 @@ _default_transition = {}
 
 _command_locks = {}
 _command_tokens = {}
+
+_rabbit_to_lights = {}
 
 config = ConfigParser()
 config.read('config/lights.ini')
@@ -49,20 +52,26 @@ for light_name_raw in config.sections():
         light_transition = 0
     if light_transition > 5000:
         light_transition = 5000
+    rabbit = config.get(light_name_raw, 'Rabbit', fallback=None)
     if light_name in _lights:
         raise ValueError('Duplicate light name: {}'.format(light_name_raw))
+    if rabbit:
+        if not rabbit in _rabbit_to_lights:
+            _rabbit_to_lights[rabbit] = []
+        _rabbit_to_lights[rabbit].append(light_name)
     _lights[light_name] = light_ip
     _default_brightness[light_name] = light_brightness
     _default_white[light_name] = light_white
     _default_transition[light_name] = light_transition
     _command_locks[light_name] = Lock()
     _command_tokens[light_name] = 0;
-    logs.debug('Loaded light "{}" (IP={}, Brightness={}, White={}, TransitionMs={})'.format(
+    logs.debug('Loaded light "{}" (IP={}, Brightness={}, White={}, TransitionMs={}, Rabbit={})'.format(
         light_name,
         light_ip,
         light_brightness,
         light_white,
-        light_transition
+        light_transition,
+        rabbit
     ))
 logs.debug('Loaded {} light definitions'.format(len(_lights)))
 
@@ -188,3 +197,26 @@ def switch(light: str, on: bool = False, brightness: int = None, white: int = No
             kwargs={'on': on, 'brightness': brightness, 'white':white, 'transition': transition, 'delay': delay, 'delay_off': delay_off },
             name='Switching Light')
         _switch_thread.start()
+
+def get_for_rabbit(rabbit: str) -> list:
+    '''
+    Get all lights associated with a rabbit
+    '''
+    rabbit = rabbits.get_name(rabbit)
+    if not rabbit in _rabbit_to_lights:
+        return []
+    return _rabbit_to_lights[rabbit]
+
+def switch_for_rabbit(rabbit: str, on: bool = False, brightness: int = None, white: int = None, transition: int = None, delay: int = None, delay_off: int = None):
+    '''
+    Switch all lights associated with a rabbit
+    on: Desired ON/OFF state, True means ON, False means OFF
+    brightness: Desired brightness [0-100], default set in config
+    white: Desired warmness from 0 (warm) to 100 (cold), default set in config
+    transition: transition delay from 0ms (immediate) to 5000ms (5 seconds), default set in config
+    delay: delay before switching the light from 0ms (immediate) to any value in milliseconds, default 0ms
+    delay_off: timeout delay before auto-switching the light off, from None (never) to any value in milliseconds, default Never
+    '''
+    lights = get_for_rabbit(rabbit)
+    for light in lights:
+        switch(light, on=on, brightness=brightness, white=white, transition=transition, delay=delay, delay_off=delay_off)

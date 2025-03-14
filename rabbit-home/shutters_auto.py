@@ -170,7 +170,7 @@ for section in config.sections():
     shutter = config.get(section, 'shutter').lower()
     opening = openings.get_opening_from_shutter(shutter)
     if opening:
-        _shutter_to_rabbit[shutter] = openings.get_rabbit_from_opening(opening)
+        _shutter_to_rabbit[shutter] = rabbits.get_name(openings.get_rabbit_from_opening(opening))
     else:
         _shutter_to_rabbit[shutter] = None
         logs.warning('Missing rabbit for shutter: {}. Set mappings in config/openings.ini')
@@ -202,13 +202,14 @@ def _can_operate(current_rabbit: str, desired_rabbit: str, override_sleep) -> bo
     '''
     return ((current_rabbit is None or current_rabbit.lower() == desired_rabbit.lower()) and (override_sleep or not nabstate.is_sleeping(desired_rabbit)))
 
-def adjust_shutters(current_rabbit: str = None, shutter_name: str = None, override_sleep: bool = False):
+def adjust_shutters(current_rabbit: str = None, shutter_name: str = None, override_sleep: bool = False, state: ShutterState = ShutterState.AUTO):
     '''
     Reset shutter position for all rooms, or only for a specific rabbit (tied to a specific room)
     Default shutter position depends on time of day
     current_rabbit: Limit operation to the specified rabbit
     shutter_name: Limit operation to the specified shutter
     override_sleep: Allow operation EVEN IF the rabbits are sleeping
+    state: Set desired state instead of auto-determining appropriate state
     '''
     if current_rabbit:
         current_rabbit = rabbits.get_name(current_rabbit)
@@ -217,7 +218,7 @@ def adjust_shutters(current_rabbit: str = None, shutter_name: str = None, overri
             if ((current_rabbit is None or current_rabbit == _shutter_to_rabbit[shutter]) \
               and (override_sleep or not nabstate.is_sleeping(_shutter_to_rabbit[shutter]))) \
               and openings.get_current_state(shutter=shutter) != OpenState.OPEN:
-                operate(shutter, ShutterState.AUTO)
+                operate(shutter, state)
 
 def _operate_defective_from_thread(shutter: str, state: ShutterState, target_half_state: int, thread_token: int):
     '''
