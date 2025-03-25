@@ -27,6 +27,7 @@ Here is a quick list of each module's purpose:
 | [`events.py`](rabbit-home/events.py)               | None                                                        | Simple event subscription/logging mechanism for use by other modules.
 | [`httpserver.py`](rabbit-home/httpserver.py)       | [`httpserver.ini`](rabbit-home/config/httpserver.ini)       | Basic HTTP server for module APIs: nabstate, scenarios, pcstate, soundplayer...
 | [`infrared.py`](rabbit-home/infrared.py)           | [`infrared.ini`](rabbit-home/config/infrared.ini)           | Wrapper around [IR-Gateway](https://github.com/ORelio/IR-Gateway) for controlling infrared-based devices.
+| [`lights.py`](rabbit-home/lights.py)               | [`lights.ini`](rabbit-home/config/lights.ini)               | Control Shelly lightbulbs through HTTP REST API
 | [`logs.py`](rabbit-home/logs.py)                   | [`logs.ini`](rabbit-home/config/logs.ini)                   | Simple python logger implementation for generating log file and console output for use by other modules.
 | [`nabd.py`](rabbit-home/nabd.py)                   | See rabbits.ini                                             | Wrapper around the [Nabd](https://github.com/nabaztag2018/pynab/blob/master/PROTOCOL.md) service for interacting with [pynab](https://github.com/nabaztag2018/pynab).
 | [`nabstate.py`](rabbit-home/nabstate.py)           | See rabbits.ini                                             | Monitor and/or change rabbit asleep/awake state.
