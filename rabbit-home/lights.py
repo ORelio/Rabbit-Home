@@ -81,7 +81,7 @@ def _api_request(light: str, api_endpoint: str, parameters: dict = None, retries
     light: name of the light
     api_endpoint: Endpoint to use. See constants defined above.
     parameters: Request parameters (as dict)
-    retries: (optional) Amount of HTTP request retries. Nabaztag webserver may be slow on first request.
+    retries: (optional) Amount of HTTP request retries
     returns API response
     '''
     light = light.lower()

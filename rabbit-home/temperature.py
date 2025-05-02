@@ -312,19 +312,19 @@ def sensor_health_monitoring_thread():
     Monitor sensor data timestamps to make sure sensors are still sending data. If not, generate an alert
     '''
     _lost_sensors = dict()
-    time.sleep(1200) # leave time for sensors to send initial data
+    time.sleep(2400) # leave time for sensors to send initial data
     while True:
-        time.sleep(1200)
+        time.sleep(2400)
         with _last_temperature_time_lock:
             for device in _device_to_name:
                 name = _device_to_name[device]
                 if not device in _lost_sensors:
-                    if not device in _last_temperature_time or _last_temperature_time[device] < (time.time() - 2400):
+                    if not device in _last_temperature_time or _last_temperature_time[device] < (time.time() - 4200):
                         _lost_sensors[device] = True
                         logs.warning('No data from sensor: {} ({})'.format(name, device))
                         notifications.publish("Pas de réception : {}".format(name), title='Capteur hors service', tags='x,thermometer', rabbit=_device_to_rabbit.get(device, None))
                 else:
-                    if device in _last_temperature_time and _last_temperature_time[device] > (time.time() - 2400):
+                    if device in _last_temperature_time and _last_temperature_time[device] > (time.time() - 4200):
                        del _lost_sensors[device]
                        logs.info('Sensor is back: {} ({})'.format(name, device))
                        notifications.publish("Capteur revenu : {}".format(name), title='Capteur opérationnel', tags='heavy_check_mark,thermometer', rabbit=_device_to_rabbit.get(device, None))
