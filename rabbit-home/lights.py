@@ -52,7 +52,7 @@ for light_name_raw in config.sections():
         light_transition = 0
     if light_transition > 5000:
         light_transition = 5000
-    rabbit = config.get(light_name_raw, 'Rabbit', fallback=None)
+    rabbit = rabbits.get_name(config.get(light_name_raw, 'Rabbit', fallback=None))
     if light_name in _lights:
         raise ValueError('Duplicate light name: {}'.format(light_name_raw))
     if rabbit:

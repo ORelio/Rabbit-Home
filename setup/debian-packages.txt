@@ -1,0 +1,2 @@
+For using cameras.py:
+apt install python3-opencv

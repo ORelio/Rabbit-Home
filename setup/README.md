@@ -6,13 +6,15 @@ Rabbit Home can handle several rabbits at once. Installing can be done directly 
 
 1. Install utilities if you plan to use plugs433/enocean/shutters:
     * See `utilities` folder for instructions.
-2. Upload the `rabbit-home` folder to your home directory:
+2. Install packages if you plan to use cameras:
+    * See debian-packages.txt for instructions
+3. Upload the `rabbit-home` folder to your home directory:
     * `/home/USERNAME/rabbit-home` should contain `rabbit-home.py`
-3. Upload and install `requirements.txt`:
+4. Upload and install `requirements.txt`:
     * `pip3 install -r requirements.txt`
-4. Enable lingering services for your account:
+5. Enable lingering services for your account:
     * `sudo loginctl enable-linger USERNAME`
-5. Create the `rabbithome` service:
+6. Create the `rabbithome` service:
     * `mkdir -p ~/.config/systemd/user`
     * `editor ~/.config/systemd/user/rabbithome.service`
     * Paste the following, adjusting your `USERNAME`:
