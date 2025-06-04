@@ -24,6 +24,8 @@ _camera_locks = {}
 _camera_should_monitor = {}
 _camera_thread_token = {}
 
+_TOKEN_INACTIVE = 0
+
 _camera_ip = {}
 _camera_port = {}
 _camera_stream = {}
@@ -70,7 +72,7 @@ for camera_name_raw in config.sections():
     _cameras.append(camera_name)
     _camera_locks[camera_name] = Lock()
     _camera_should_monitor[camera_name] = False
-    _camera_thread_token[camera_name] = 0
+    _camera_thread_token[camera_name] = _TOKEN_INACTIVE
     _camera_ip[camera_name] = camera_ip
     _camera_port[camera_name] = camera_port
     _camera_stream[camera_name] = camera_stream
@@ -269,12 +271,12 @@ def capture_and_send(
                     )
                 finally:
                     cap.release()
-            first_photo = False
-            count -= 1
-            if count >= 1:
-                time.sleep(delay)
-        else:
-            return _capture_error(camera, 'Camera is not reachable: {}')
+                first_photo = False
+                count -= 1
+                if count >= 1:
+                    time.sleep(delay)
+            else:
+                return _capture_error(camera, 'Camera is not reachable: {}')
 
 def _monitor_thread(camera: str, thread_token: int):
     '''
@@ -364,29 +366,46 @@ def start_monitoring(camera: str = None, rabbit: str = None):
             _switch_camera_socket(camera=camera, on=True)
         with _camera_locks[camera]:
             thread_token = round(time.time() * 1000)
-            if _camera_thread_token.get(camera, 0) == thread_token:
+            if _camera_thread_token.get(camera, _TOKEN_INACTIVE) == thread_token:
                 thread_token -= 1;
             _camera_thread_token[camera] = thread_token
             t = Thread(target=_monitor_thread, args=[camera, thread_token], name='Camera monitor : {}'.format(camera))
             t.start()
 
-def stop_monitoring(camera: str = None, rabbit: str = None):
+def _stop_monitoring_thread(camera: str = None, rabbit: str = None):
     '''
-    Stop monitoring cameras and sending photos automatically
+    Stop monitoring cameras and sending photos automatically (internal thread)
     Automatically turn OFF cameras having an associated power socket.
     camera: Name of camera to monitor (default: all cameras)
     rabbit: Monitor cameras for the specified rabbit (mutually exclusive with 'camera')
     '''
     cameras = _params_to_camera_list(camera=camera, rabbit=rabbit)
     for camera in cameras:
-        logs.info('Stopping monitoring for camera: {}'.format(camera))
-        with _camera_locks[camera]:
-            _camera_thread_token[camera] = 0
-        notifications.publish(
-            message="Arrêt caméra : {}".format(camera),
-            tags='stop_button,video_camera',
-            topic=_camera_screenshot_channel[camera],
-            rabbit=_camera_rabbit[camera]
-        )
-        if _camera_power_socket[camera]:
-            _switch_camera_socket(camera=camera, on=False)
+        if _camera_thread_token[camera] == _TOKEN_INACTIVE:
+            logs.debug('Monitoring already stopped for camera: {}'.format(camera))
+        else:
+            logs.info('Stopping monitoring for camera: {}'.format(camera))
+            with _camera_locks[camera]:
+                _camera_thread_token[camera] = _TOKEN_INACTIVE
+            notifications.publish(
+                message="Arrêt caméra : {}".format(camera),
+                tags='stop_button,video_camera',
+                topic=_camera_screenshot_channel[camera],
+                rabbit=_camera_rabbit[camera]
+            )
+            if _camera_power_socket[camera]:
+                _switch_camera_socket(camera=camera, on=False)
+
+def stop_monitoring(camera: str = None, rabbit: str = None, synchronous: bool = False):
+    '''
+    Stop monitoring cameras and sending photos automatically
+    Automatically turn OFF cameras having an associated power socket.
+    camera: Name of camera to monitor (default: all cameras)
+    rabbit: Monitor cameras for the specified rabbit (mutually exclusive with 'camera')
+    synchronous: Wait for monitoring to stop before returning
+    '''
+    if synchronous:
+        _stop_monitoring_thread(camera=camera, rabbit=rabbit)
+    else:
+        t = Thread(target=_stop_monitoring_thread, args=[camera, rabbit], name='Stop camera monitoring (camera={}, rabbit={})'.format(camera, rabbit))
+        t.start()
