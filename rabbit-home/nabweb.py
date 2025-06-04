@@ -122,6 +122,6 @@ def _api_request(rabbit: str, request_type: str, api_endpoint: str, request_data
             raise ValueError('Request type not implemented: ' + request_type)
     except requests.exceptions.ConnectionError:
         if retries <= 0:
-            logs.debug(f"in _api_request({rabbit}, {request_type}, {api_endpoint}, {str(request_data)}, {retries}):")
+            logs.error(f"in _api_request({rabbit}, {request_type}, {api_endpoint}, {str(request_data)}, {retries}):")
             raise
         _api_request(rabbit, request_type, api_endpoint, request_data, retries - 1)

@@ -107,12 +107,6 @@ def set_sleeping(rabbit: str, sleeping: bool, play_sound: bool = False):
 
     nabaztag_ip = rabbits.get_ip(rabbit)
 
-    # Adjust settings
-    nabweb.change_settings(nabaztag_ip, nabweb.API_NABCLOCKD, {
-        'play_wakeup_sleep_sounds': str(play_sound).lower(),
-        'settings_per_day': 'false',
-    })
-
     # Change state only if current state is not the desired state
     current_state = get_state(nabaztag_ip)
     if current_state == STATE_OFFLINE:
@@ -121,6 +115,12 @@ def set_sleeping(rabbit: str, sleeping: bool, play_sound: bool = False):
         return # Already sleeping
     if current_state != STATE_ASLEEP and not sleeping:
         return # Already awake (idle or doing something else)
+
+    # Adjust settings
+    nabweb.change_settings(nabaztag_ip, nabweb.API_NABCLOCKD, {
+        'play_wakeup_sleep_sounds': str(play_sound).lower(),
+        'settings_per_day': 'false',
+    })
 
     # Change setting to cancel manual wakeup - pressing nabaztag button to wake it up
     nabweb.change_settings(nabaztag_ip, nabweb.API_NABCLOCKD, {
