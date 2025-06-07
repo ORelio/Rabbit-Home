@@ -22,6 +22,8 @@ Here is a quick list of each module's purpose:
 | Module                                             | Config file                                                 | Purpose
 |----------------------------------------------------|-------------------------------------------------------------|---------
 | [`actions.py`](rabbit-home/actions.py)             | None                                                        | Allows configuring actions to launch from other modules such as switches and rfid.
+| [`cameras.py`](rabbit-home/cameras.py)             | [`cameras.ini`](rabbit-home/config/cameras.ini)             | Monitor RTSP cameras and send notifications with image attachments
+| [`datastore.py`](rabbit-home/datastore.py)         | [`datastore.json`](rabbit-home/cache/datastore.json)        | Store persistent data across service restarts for use by other modules.
 | [`daycycle.py`](rabbit-home/daycycle.py)           | [`daycycle.ini`](rabbit-home/config/daycycle.ini)           | Calculate sunrise/sunset/etc times based on GPS coordinates using [skyfield](https://github.com/skyfielders/python-skyfield), providing a callback mechanism when these events occur.
 | [`enocean.py`](rabbit-home/enocean.py)             | [`enocean.ini`](rabbit-home/config/enocean.ini)             | Watch for events produced by batteryless [Enocean](https://en.wikipedia.org/wiki/EnOcean) sensors using a dedicated [usb dongle](https://www.enocean.com/en/product/usb-300/): switches, handheld remote control, temperature sensors... providing a callback mechanism.
 | [`events.py`](rabbit-home/events.py)               | None                                                        | Simple event subscription/logging mechanism for use by other modules.

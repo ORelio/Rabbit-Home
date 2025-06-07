@@ -17,16 +17,19 @@ import time
 
 from logs import logs
 
+import datastore
+
 _shutters = {}
 _shutter_locks = {}
 _shutter_thread_tokens = {}
-_shutter_state = {}
-_shutter_state_percent = {}
 _shutter_delay_close = {}
 _shutter_closed_offset = {}
 _shutter_delay_open = {}
 _shutter_halfway = {}
 _command_lock = Lock()
+
+_SHUTTER_STATE_DATASTORE = 'shutters.state_percent'
+_shutter_state_percent = datastore.get(_SHUTTER_STATE_DATASTORE, {})
 
 class ShutterState(Enum):
     OPEN = 1
@@ -122,7 +125,15 @@ def get_current_state(shutter: str) -> ShutterState:
     This returns the last operated state, which may not match if the shutter was operated manually
     Returns current state or STOP if unknown
     '''
-    return _shutter_state.get(shutter, ShutterState.STOP)
+    state_percent = _shutter_state_percent.get(shutter, None)
+    if state_percent <= 0:
+        return ShutterState.OPEN
+    elif state_percent >= 100:
+        return ShutterState.CLOSE
+    elif state_percent == get_halfway_percent(shutter):
+        return ShutterState.HALF
+    else:
+        return ShutterState.STOP
 
 def get_current_state_percent(shutter: str) -> int:
     '''
@@ -187,14 +198,7 @@ def _update_state_percent_from_thread(shutter: str, state_percent: int, thread_t
     if _shutter_thread_tokens[shutter] == thread_token:
         with _shutter_locks[shutter]:
             _shutter_state_percent[shutter] = state_percent
-            if state_percent <= 0:
-                _shutter_state[shutter] = ShutterState.OPEN
-            elif state_percent >= 100:
-                _shutter_state[shutter] = ShutterState.CLOSE
-            elif state_percent == get_halfway_percent(shutter):
-                _shutter_state[shutter] = ShutterState.HALF
-            else:
-                _shutter_state[shutter] = ShutterState.STOP
+            datastore.set(_SHUTTER_STATE_DATASTORE, _shutter_state_percent)
 
 def _move_to_state_percent(shutter: str, desired_state_percent: int, thread_token: int):
     '''
@@ -286,6 +290,7 @@ def operate(shutter: str, state: ShutterState, target_half_state = None) -> bool
         raise ValueError('State "AUTO" is supported through shutters_auto.operate()')
 
     with _shutter_locks[shutter]:
+        # Update token, which will cancel any ongoing operation
         thread_token = round(time.time() * 1000)
         if _shutter_thread_tokens.get(shutter, 0) == thread_token:
             thread_token -= 1;
@@ -304,7 +309,6 @@ def operate(shutter: str, state: ShutterState, target_half_state = None) -> bool
             if state == ShutterState.CLOSE:
                 desired_state_percent = 100
             if state == ShutterState.STOP:
-                _shutter_state[shutter] = state
                 _send_command(shutter, state)
                 logs.info('Stopping shutter {} ({}%)'.format(shutter, get_current_state_percent(shutter)))
             else:
@@ -317,7 +321,12 @@ def operate(shutter: str, state: ShutterState, target_half_state = None) -> bool
                 logs.error('Cannot set {} to HALF: No length/offset in config'.format(shutter))
                 return False
             else:
-                _shutter_state[shutter] = state
                 _send_command(shutter, state)
+                if state == ShutterState.OPEN:
+                    _shutter_state_percent[shutter] = 0
+                elif state == ShutterState.CLOSE:
+                    _shutter_state_percent[shutter] = 100
+                else:
+                    _shutter_state_percent[shutter] = None
 
     return True

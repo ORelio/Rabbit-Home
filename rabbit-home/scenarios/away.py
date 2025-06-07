@@ -12,16 +12,20 @@ from logs import logs
 
 import time
 
+import datastore
 import rabbits
 import nabstate
 import shutters_auto
 
-away = False
+AWAY_DATASTORE_KEY = 'scenario.away'
+away = datastore.get(AWAY_DATASTORE_KEY, False)
 away_time = 0
 
 def init():
     subscribe(Event.WAKEUP, wakeup)
     subscribe(Event.OPEN_CLOSE, door)
+    if away:
+        _away(True)
 
 # RFID, Switch or API: Switch Away mode
 def run(event: Event, rabbit: str = None, args: dict = {}):
@@ -29,7 +33,7 @@ def run(event: Event, rabbit: str = None, args: dict = {}):
     if 'away' in args and args['away'] == False:
         _back(True)
     else:
-        _away()
+        _away(False)
 
 # Button on rabbit: End Away mode
 def wakeup(event: Event, rabbit: str = None, args: dict = {}):
@@ -48,13 +52,17 @@ def door(event: Event, rabbit: str = None, args: dict = {}):
             _back(False)
 
 # Start Away mode
-def _away():
+def _away(force: bool):
     global away
     global away_time
-    if not away:
-        logs.info('Entering Away mode')
-        away = True
-        away_time = time.time()
+    if not away or force:
+        if force:
+            logs.info('Resuming Away mode')
+            away_time = time.time() - 60
+        else:
+            logs.info('Entering Away mode')
+            away = datastore.set(AWAY_DATASTORE_KEY, True)
+            away_time = time.time()
         shutters_auto.operate('all', ShutterState.CLOSE)
         for rabbit in rabbits.get_all():
             nabstate.set_sleeping(rabbit, sleeping=True, play_sound=False)
@@ -66,7 +74,7 @@ def _back(force: bool):
     global away
     if away or force:
         logs.info('Exiting Away mode')
-        away = False
+        away = datastore.set(AWAY_DATASTORE_KEY, False)
         # Open shutters without waiting for other rabbits to wake up
         shutters_auto.adjust_shutters(override_sleep=True)
         # Wake up the other rabbits (slow, so doing it last)
