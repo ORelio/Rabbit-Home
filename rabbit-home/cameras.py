@@ -192,7 +192,7 @@ def _capture_error(camera, message_format):
         rabbit=_camera_rabbit[camera]
     )
 
-def capture_and_send(
+def _capture_and_send_thread(
         camera: str,
         message: str = None,
         title: str = None,
@@ -204,15 +204,7 @@ def capture_and_send(
         delay = 1,
     ):
     '''
-    Capture a photo from a camera and send it as notification
-    message: Message to attach to the capture
-    title: Title for the message to attach to the capture
-    priority: Notification priority. Default is lowest (silent).
-    priority_first: Different priority for the first photo of a series (see count)
-    tags: Notification tags, see notification.publish().
-    low_res: Make a low resolution capture to save bandwidth.
-    count: Amount of photos to take
-    delay: Delay between each photo in seconds
+    Capture a photo from a camera and send it as notification (internal, see capture_and_send())
     '''
     camera = camera.lower()
     host = _get_host(camera)
@@ -277,6 +269,60 @@ def capture_and_send(
                     time.sleep(delay)
             else:
                 return _capture_error(camera, 'Camera is not reachable: {}')
+
+def capture_and_send(
+        camera: str,
+        message: str = None,
+        title: str = None,
+        priority: notifications.Priority = None,
+        priority_first: notifications.Priority = None,
+        tags: str = 'video_camera',
+        low_res: bool = False,
+        count = 1,
+        delay = 1,
+        synchronous: bool = False,
+    ):
+    '''
+    Capture a photo from a camera and send it as notification
+    message: Message to attach to the capture
+    title: Title for the message to attach to the capture
+    priority: Notification priority. Default is lowest (silent).
+    priority_first: Different priority for the first photo of a series (see count)
+    tags: Notification tags, see notification.publish().
+    low_res: Make a low resolution capture to save bandwidth.
+    count: Amount of photos to take
+    delay: Delay between each photo in seconds
+    synchronous: Wait for capture(s) to finish before returning
+    '''
+    if synchronous:
+        return _capture_and_send_thread(
+            camera=camera,
+            message=message,
+            title=title,
+            priority=priority,
+            priority_first=priority_first,
+            tags=tags,
+            low_res=low_res,
+            count=count,
+            delay=delay,
+        )
+    else:
+        _capture_thread = Thread(target=_capture_and_send_thread,
+            kwargs={
+                'camera': camera,
+                'message': message,
+                'title': title,
+                'priority': priority,
+                'priority_first': priority_first,
+                'tags': tags,
+                'low_res': low_res,
+                'count': count,
+                'delay': delay,
+            },
+            name='Capture and send (camera={}, title={})'.format(camera, title))
+        _capture_thread.start()
+        while _capture_thread.is_alive() and not _camera_locks[camera].locked():
+            time.sleep(0.05) # make sure the lock is acquired before returning
 
 def _monitor_thread(camera: str, thread_token: int):
     '''
