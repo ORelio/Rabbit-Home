@@ -154,11 +154,11 @@ def is_reachable(camera: str, timeout_seconds: int = 10) -> bool:
     if timeout_seconds < 5:
         raise ValueError('Timeout too short, minimum 5 seconds')
     try:
-        requests.get('http://{}/'.format(host), timeout=timeout_seconds)
+        requests.options('http://{}/'.format(host), timeout=timeout_seconds)
     except requests.exceptions.ConnectionError as e:
         if len(e.args) > 0 \
           and len(e.args[0].args) > 1 \
-          and str(e.args[0].args[1]).strip() == 'RTSP/1.0 400 Bad Request':
+          and str(e.args[0].args[1]).strip() == 'RTSP/1.0 200 OK':
             return True
     return False
 
