@@ -77,7 +77,7 @@ def _back(force: bool):
         away = datastore.set(AWAY_DATASTORE_KEY, False)
         # Open shutters without waiting for other rabbits to wake up
         shutters_auto.adjust_shutters(override_sleep=True)
-        # Wake up the other rabbits (slow, so doing it last)
+        # Wake up all rabbits (slow, so doing it last)
         for rabbit in rabbits.get_all():
             nabstate.set_sleeping(rabbit, sleeping=False, play_sound=False)
     else:

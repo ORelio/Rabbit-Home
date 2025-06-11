@@ -17,6 +17,7 @@ import plugs433
 import lights
 import nabstate
 import nabweb
+import alarm
 
 # Defer import to avoid circular dependency
 # scenarios -> pcstate -> actions -> scenarios
@@ -34,6 +35,7 @@ def str2action(action: str, setting_name: str = None) -> 'Action':
      plug:plug_name:on|off[/on|off <- operation_on_release_long_press]
      light:light_name:on|off[/brightness=XX][/white=XX][/transition=XXX]
      webhook:url <- example: http://example.com/?mywebhook
+     alarm:on|off|0|1|2|3|4|5|6|7|8|9
      sleep[:rabbit_name]
      weather[:rabbit_name]
      airquality[:rabbit_name]
@@ -72,6 +74,8 @@ def str2action(action: str, setting_name: str = None) -> 'Action':
         return LightAction(action_name, action_data)
     elif action_type == 'webhook':
         return WebhookAction(action_name_and_data, None)
+    elif action_type == 'alarm':
+        return AlarmAction(action_name, action_data)
     elif action_type == 'sleep':
         return SleepAction(action_name, action_data)
     elif action_type == 'weather':
@@ -220,6 +224,18 @@ class WebhookAction(Action):
                 logs.error('Failed to call webhook URL: {}'.format(self.url))
     def __repr__(self):
         return 'WebhookAction({})'.format(self.url)
+
+class AlarmAction(Action):
+    '''
+    Run alarm command: ON, OFF or Keypad digit
+    '''
+    def __init__(self, name: str, data: str = None):
+        self.cmd = name
+    def run(self, event_type = None, rabbit = None, secondary_action: bool = False):
+        if not secondary_action:
+            alarm.command(self.cmd)
+    def __repr__(self):
+        return 'AlarmAction({})'.format(self.cmd)
 
 class SleepAction(Action):
     '''
