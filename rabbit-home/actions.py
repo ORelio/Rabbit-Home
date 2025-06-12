@@ -29,6 +29,9 @@ def str2action(action: str, setting_name: str = None) -> 'Action':
     type:name[:data] => object representation
     raises ValueError for invalid syntax or unavailable action type
 
+    Multiple actions:
+     action1;action2;action3 <- specify multiple comma-separated actions
+
     Supported actions:
      scenario:scenario_name[:{"arg1":"value", "arg2:"value"}]
      shutter:shutter_name:operation[/operation_on_release_long_press]
@@ -49,8 +52,12 @@ def str2action(action: str, setting_name: str = None) -> 'Action':
      light_name can be several lights: lightone+lighttwo
      light brightness/white/transition are optional
      shutter operation can be open/close/stop/half/auto (see shutters.py). 'auto' only works with shutters_auto.
-     omitting rabbit_name is possible for rabbit-related events such as rfid
+     omitting rabbit_name is possible when action is launched from rabbit-related events such as rfid
     '''
+    action = action.strip().strip(';').strip()
+    if ';' in action:
+        return MultipleActions([str2action(item, setting_name) for item in action.split(';')])
+
     if not setting_name:
         setting_name = '<unknown setting>'
 
@@ -101,6 +108,19 @@ class Action:
         raise NotImplementedError('run() not implemented.')
     def __repr__(self):
         raise NotImplementedError('__repr__ not implemented.')
+
+class MultipleActions(Action):
+    '''
+    Holds multiple actions at once.
+    Actions will run sequentially; if an action crashes, the next one will not run.
+    '''
+    def __init__(self, actions: list):
+        self.actions = actions
+    def run(self, event_type = None, rabbit = None, secondary_action: bool = False):
+        for action in self.actions:
+            action.run(event_type, rabbit, secondary_action)
+    def __repr__(self):
+        return 'MultipleActions({})'.format(', '.join([str(action) for action in self.actions]))
 
 class ScenarioAction(Action):
     '''
