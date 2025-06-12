@@ -74,8 +74,8 @@ def command(cmd: str):
                 if _typed_attempts >= _KEYPAD_MAX_ATTEMPTS:
                     logs.info('Tried to enable or disable alarm but too many attempts, wait {} seconds'.format(_KEYPAD_TIMEOUT_SECONDS))
                     notifications.publish(
-                        'Un mauvais code a été saisi précédemment, attendre {} secondes'.format(_KEYPAD_TIMEOUT_SECONDS),
                         title="Code PIN bloqué",
+                        message='Un mauvais code a été saisi précédemment, attendre {} secondes'.format(_KEYPAD_TIMEOUT_SECONDS),
                         tags='no_entry,lock',
                         topic=_notification_topic,
                         priority=notifications.Priority.HIGH,
@@ -87,8 +87,8 @@ def command(cmd: str):
                     logs.info('Tried to enable or disable alarm but wrong keycode. Attempt {}/{}'.format(_typed_attempts, _KEYPAD_MAX_ATTEMPTS))
                     if _typed_attempts < 3:
                         notifications.publish(
-                            'Un mauvais code a été saisi ({}/{})'.format(_typed_attempts, _KEYPAD_MAX_ATTEMPTS),
                             title="Code PIN incorrect",
+                            message='Un mauvais code a été saisi ({}/{})'.format(_typed_attempts, _KEYPAD_MAX_ATTEMPTS),
                             tags='x,lock',
                             topic=_notification_topic,
                             priority=notifications.Priority.HIGH,
@@ -96,8 +96,8 @@ def command(cmd: str):
                         # TODO Play deny sound
                     else:
                         notifications.publish(
-                            'Un mauvais code a été saisi ({}/{})\nAttendre {} secondes'.format(_typed_attempts, _KEYPAD_MAX_ATTEMPTS, _KEYPAD_TIMEOUT_SECONDS),
                             title="Code PIN bloqué",
+                            message='Un mauvais code a été saisi ({}/{})\nAttendre {} secondes'.format(_typed_attempts, _KEYPAD_MAX_ATTEMPTS, _KEYPAD_TIMEOUT_SECONDS),
                             tags='no_entry,lock',
                             topic=_notification_topic,
                             priority=notifications.Priority.HIGHEST,
@@ -108,8 +108,8 @@ def command(cmd: str):
                     if is_enabled() == desired_state:
                         logs.info('Tried to {} alarm but already in desired state'.format('enable' if desired_state else 'disable'))
                         notifications.publish(
-                            "Alarme déjà {}".format('activée' if desired_state else 'désactivée'),
                             title='Code PIN valide',
+                            message="Alarme déjà {}".format('activée' if desired_state else 'désactivée'),
                             tags='information_source,{}'.format('lock' if desired_state else 'unlock'),
                             topic=_notification_topic,
                         )
@@ -117,8 +117,8 @@ def command(cmd: str):
                     elif desired_state:
                         logs.info('Enabling alarm using valid PIN code')
                         notifications.publish(
-                            'Après saisie du code PIN',
                             title="Alarme activée",
+                            message='Après saisie du code PIN',
                             tags='green_circle,lock',
                             topic=_notification_topic,
                         )
@@ -127,8 +127,8 @@ def command(cmd: str):
                     else:
                         logs.info('Disabling alarm using valid PIN code')
                         notifications.publish(
-                            'Après saisie du code PIN',
                             title="Alarme désactivée",
+                            message='Après saisie du code PIN',
                             tags='red_circle,unlock',
                             topic=_notification_topic,
                         )
@@ -157,9 +157,9 @@ def _enable_alarm(with_grace_time: bool = True):
     '''
     global _enable_time
     if with_grace_time:
-        enable_time = time.time()
+        _enable_time = time.time()
     else:
-        enable_time = time.time() - _ENABLE_GRACE_TIME_SECONDS - 1
+        _enable_time = time.time() - _ENABLE_GRACE_TIME_SECONDS - 1
     datastore.set(_DATASTORE_ALARM_ENABLED, True)
     cameras.start_monitoring(topic=_notification_topic)
 
@@ -180,9 +180,11 @@ def _trigger_alarm():
         for camera in cameras.get_all():
             cameras.capture_and_send(
                 camera=camera,
-                message="Alarme déclenchée",
+                title="Alarme déclenchée",
+                message=camera,
                 tags='rotating_light,video_camera',
                 priority=priority,
+                synchronous=True,
             )
         priority = notifications.Priority.LOWEST
 
@@ -220,8 +222,8 @@ def _opening_event_callback(opening_name: str, state: OpenState, shutter_name: s
     else:
         logs.warning('Other Door/Window opened after activating the alarm, triggering now')
         notifications.publish(
-            "Le capteur {} s'est déclenché".format(opening_name),
             title="Ouverture détectée",
+            message="Le capteur {} s'est déclenché".format(opening_name),
             tags='rotating_light,window',
             topic=_notification_topic,
             priority=notifications.Priority.HIGHEST,
@@ -233,8 +235,8 @@ openings.event_handler.subscribe(_opening_event_callback)
 if is_enabled():
     logs.warning('Alarm was enabled before shutting down service, reenabling')
     notifications.publish(
-        'Reprise sur coupure de courant',
         title="Réactivation de l'alarme",
+        message='Reprise sur coupure de courant',
         tags='recycle',
         topic=_notification_topic
     )

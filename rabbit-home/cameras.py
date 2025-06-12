@@ -330,20 +330,22 @@ def _monitor_thread(camera: str, topic: str, thread_token: int):
 
     camera_lost = False
     if wait_for_camera(camera):
-        capture_and_send(camera,
-            title='Démarrage caméra : {}'.format(camera),
-            message=frequency_desc,
-            tags='arrow_forward,video_camera',
-            topic=topic
-        )
+        if thread_token == _camera_thread_token[camera]:
+            capture_and_send(camera,
+                title='Démarrage caméra : {}'.format(camera),
+                message=frequency_desc,
+                tags='arrow_forward,video_camera',
+                topic=topic
+            )
     else:
-        notifications.publish(
-            message="La caméra n'a pas démarré : {}".format(camera),
-            tags='x,video_camera',
-            topic=topic,
-            priority=notifications.Priority.HIGH
-        )
-        camera_lost = True
+        if thread_token == _camera_thread_token[camera]:
+            notifications.publish(
+                message="La caméra n'a pas démarré : {}".format(camera),
+                tags='x,video_camera',
+                topic=topic,
+                priority=notifications.Priority.HIGH
+            )
+            camera_lost = True
 
     take_screenshots = frequency > 0
     next_screenshot_time = time.time() + (frequency * 60)
