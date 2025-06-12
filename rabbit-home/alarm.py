@@ -5,6 +5,7 @@
 # By ORelio (c) 2025 - CDDL 1.0
 # ===========================================
 
+from threading import Lock
 from configparser import ConfigParser
 
 import time
@@ -18,8 +19,19 @@ import notifications
 import openings
 import rabbits
 
+_command_lock = Lock()
+
 _keycode = None
+
 _typed = ''
+_typed_time = 0
+_typed_attempts = 0
+
+_KEYPAD_MAX_ATTEMPTS = 3
+_KEYPAD_TIMEOUT_SECONDS = 30
+_FRONT_DOOR_GRACE_TIME_SECONDS = 30
+_ENABLE_GRACE_TIME_SECONDS = 75
+
 _rabbit = None
 _notification_topic = None
 
@@ -43,33 +55,95 @@ def command(cmd: str):
     cmd: ON/OFF or a digit (as string)
     '''
     global _typed
+    global _typed_time
+    global _typed_attempts
     cmd = cmd.upper()
     if not cmd in ['ON', 'OFF', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' ]:
         raise ValueError('Invalid command: {}'.format(char))
-    if cmd == 'ON' or cmd == 'OFF':
-        if _typed != _keycode:
-            logs.info('Tried to enable or disable alarm but wrong keycode')
-            # TODO Play sound using rabbit
-        else:
-            desired_state = (cmd == 'ON')
-            if is_enabled() == desired_state:
-                logs.info('Tried to enable or disable alarm but already in desired state')
+    with _command_lock:
+        if _typed_time + _KEYPAD_TIMEOUT_SECONDS < time.time():
+            # Reset Keypad and Attempts on idle timeout
+            _typed = ''
+            _typed_attempts = 0
+        if cmd == 'ON' or cmd == 'OFF':
+            if len(_typed) == 0:
+                # Ignore button presses if not keycode provided
+                logs.info('Tried to enable or disable alarm but no keycode typed')
             else:
-                if desired_state:
-                    logs.info('Enabling alarm')
-                    notifications.publish('Après saisie du code PIN', title="Alarme activée", tags='green_circle,lock', topic=_notification_topic)
-                    _enable_alarm()
-                    # TODO Play sound using rabbit
+                # Reject ON/OFF attempts on too many incorrect PINs
+                if _typed_attempts >= _KEYPAD_MAX_ATTEMPTS:
+                    logs.info('Tried to enable or disable alarm but too many attempts, wait {} seconds'.format(_KEYPAD_TIMEOUT_SECONDS))
+                    notifications.publish(
+                        'Un mauvais code a été saisi précédemment, attendre {} secondes'.format(_KEYPAD_TIMEOUT_SECONDS),
+                        title="Code PIN bloqué",
+                        tags='no_entry,lock',
+                        topic=_notification_topic,
+                        priority=notifications.Priority.HIGH,
+                    )
+                    # TODO Play long deny sound
+                elif _typed != _keycode:
+                    _typed_attempts += 1
+                    _typed_time = time.time()
+                    logs.info('Tried to enable or disable alarm but wrong keycode. Attempt {}/{}'.format(_typed_attempts, _KEYPAD_MAX_ATTEMPTS))
+                    if _typed_attempts < 3:
+                        notifications.publish(
+                            'Un mauvais code a été saisi ({}/{})'.format(_typed_attempts, _KEYPAD_MAX_ATTEMPTS),
+                            title="Code PIN incorrect",
+                            tags='x,lock',
+                            topic=_notification_topic,
+                            priority=notifications.Priority.HIGH,
+                        )
+                        # TODO Play deny sound
+                    else:
+                        notifications.publish(
+                            'Un mauvais code a été saisi ({}/{})\nAttendre {} secondes'.format(_typed_attempts, _KEYPAD_MAX_ATTEMPTS, _KEYPAD_TIMEOUT_SECONDS),
+                            title="Code PIN bloqué",
+                            tags='no_entry,lock',
+                            topic=_notification_topic,
+                            priority=notifications.Priority.HIGHEST,
+                        )
+                        # TODO Play long deny sound
                 else:
-                    logs.info('Disabling alarm')
-                    notifications.publish('Après saisie du code PIN', title="Alarme désactivée", tags='red_circle,unlock', topic=_notification_topic)
-                    _disable_alarm()
-                    # TODO Play sound using rabbit
-        _typed = ''
-    else:
-        _typed = _typed + cmd
-        if len(_typed) > len(_keycode):
-            _typed = _typed[-1 * len(_keycode):]
+                    desired_state = (cmd == 'ON')
+                    if is_enabled() == desired_state:
+                        logs.info('Tried to {} alarm but already in desired state'.format('enable' if desired_state else 'disable'))
+                        notifications.publish(
+                            "Alarme déjà {}".format('activée' if desired_state else 'désactivée'),
+                            title='Code PIN valide',
+                            tags='information_source,{}'.format('lock' if desired_state else 'unlock'),
+                            topic=_notification_topic,
+                        )
+                        # TODO Play enable or disable sound
+                    elif desired_state:
+                        logs.info('Enabling alarm using valid PIN code')
+                        notifications.publish(
+                            'Après saisie du code PIN',
+                            title="Alarme activée",
+                            tags='green_circle,lock',
+                            topic=_notification_topic,
+                        )
+                        _enable_alarm()
+                        # TODO Play enable sound
+                    else:
+                        logs.info('Disabling alarm using valid PIN code')
+                        notifications.publish(
+                            'Après saisie du code PIN',
+                            title="Alarme désactivée",
+                            tags='red_circle,unlock',
+                            topic=_notification_topic,
+                        )
+                        _disable_alarm()
+                        # TODO Play disable sound
+                    # Reset attempts after successful action
+                    _typed_attempts = 0
+                # Reset typed code regardless of success
+                _typed = ''
+        else:
+            _typed_time = time.time()
+            _typed = _typed + cmd
+            if len(_typed) > len(_keycode):
+                _typed = _typed[-1 * len(_keycode):]
+            logs.debug('Typed keycode: {}'.format(_typed))
 
 def is_enabled() -> bool:
     '''
@@ -77,21 +151,21 @@ def is_enabled() -> bool:
     '''
     return datastore.get(_DATASTORE_ALARM_ENABLED, False)
 
-def _enable_alarm(enable_time: int = 0):
+def _enable_alarm(with_grace_time: bool = True):
     '''
     Operations for enabling alarm
-    enable_time: Set custom enable time, default is current timestamp
     '''
     global _enable_time
-    if enable_time <= 0:
+    if with_grace_time:
         enable_time = time.time()
-    _enable_time = enable_time
+    else:
+        enable_time = time.time() - _ENABLE_GRACE_TIME_SECONDS - 1
     datastore.set(_DATASTORE_ALARM_ENABLED, True)
     cameras.start_monitoring(topic=_notification_topic)
 
 def _disable_alarm():
     '''
-    Operaitons for disabling alarm
+    Operations for disabling alarm
     '''
     datastore.set(_DATASTORE_ALARM_ENABLED, False)
     cameras.stop_monitoring(topic=_notification_topic)
@@ -100,16 +174,17 @@ def _trigger_alarm():
     '''
     Trigger the alarm
     '''
-    # TODO add alarm bell
-    for camera in cameras.get_all():
-        cameras.capture_and_send(
-            camera=camera,
-            message="Alarme déclenchée",
-            tags='rotating_light,video_camera',
-            priority_first=notifications.Priority.HIGHEST,
-            priority=notifications.Priority.LOWEST,
-            count=10
-        )
+    # TODO ring alarm bell
+    priority = notifications.Priority.HIGHEST
+    while is_enabled():
+        for camera in cameras.get_all():
+            cameras.capture_and_send(
+                camera=camera,
+                message="Alarme déclenchée",
+                tags='rotating_light,video_camera',
+                priority=priority,
+            )
+        priority = notifications.Priority.LOWEST
 
 def _opening_event_callback(opening_name: str, state: OpenState, shutter_name: str = None, rabbit_name: str = None, is_front_door: bool = False):
     '''
@@ -123,12 +198,12 @@ def _opening_event_callback(opening_name: str, state: OpenState, shutter_name: s
         logs.debug('Door/Window "{}" opened but alarm is disabled, ignoring'.format(opening_name))
         return
 
-    if _enable_time + 75 >= time.time():
+    if _enable_time + _ENABLE_GRACE_TIME_SECONDS >= time.time():
         logs.debug('Door/Window "{}" opened quickly after activating alarm, ignoring'.format(opening_name))
         return
 
     if is_front_door:
-        logs.info('Front door opened after activating the alarm, triggering after a grace delay')
+        logs.info('Front door opened and alarm enabled, taking photos and triggering after a grace delay')
         cameras.capture_and_send(
             camera='entree',
             message="Quelqu'un est entré",
@@ -137,18 +212,30 @@ def _opening_event_callback(opening_name: str, state: OpenState, shutter_name: s
             priority=notifications.Priority.LOWEST,
             count=10
         )
-        time.sleep(30)
+        # TODO play warning sound(s)
+        time.sleep(_FRONT_DOOR_GRACE_TIME_SECONDS)
         if is_enabled():
             logs.warning('Alarm not disabled during grace delay, triggering now')
             _trigger_alarm()
     else:
         logs.warning('Other Door/Window opened after activating the alarm, triggering now')
-        notifications.publish("Le capteur {} s'est déclenché".format(opening_name), title="Ouverture détectée", tags='rotating_light,window', topic=_notification_topic, priority=notifications.Priority.HIGHEST)
+        notifications.publish(
+            "Le capteur {} s'est déclenché".format(opening_name),
+            title="Ouverture détectée",
+            tags='rotating_light,window',
+            topic=_notification_topic,
+            priority=notifications.Priority.HIGHEST,
+        )
         _trigger_alarm()
 
 openings.event_handler.subscribe(_opening_event_callback)
 
 if is_enabled():
     logs.warning('Alarm was enabled before shutting down service, reenabling')
-    notifications.publish('Reprise sur coupure de courant', title="Réactivation de l'alarme", tags='recycle', topic=_notification_topic)
-    _enable_alarm(time.time() - 75)
+    notifications.publish(
+        'Reprise sur coupure de courant',
+        title="Réactivation de l'alarme",
+        tags='recycle',
+        topic=_notification_topic
+    )
+    _enable_alarm(with_grace_time=False)
