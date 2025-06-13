@@ -292,18 +292,23 @@ enocean.temperature_event_handler.subscribe(enocean_callback)
 def temperature_monitoring_thread():
     '''
     Monitor outdoors temperature from weather forecast and generate events based on that every 30 minutes.
-    This is a fallack when there is no defined outside sensor in configuration.
+    This is a fallack when there is no defined outside sensor in configuration, or sensor has not sent data yet.
     '''
-    while True:
-        temperature = get_temperature_outside()
+    if _device_outside is None:
+        logs.warning('No outside sensor, using weather forecast instead'.format(device))
+        while True:
+            temperature = get_temperature_outside()
+            if temperature:
+                event_handler.dispatch(TemperatureEvent(TemperatureEventType.DATA, temperature, 'weather_forecast', None, True))
+            time.sleep(1800)
+    else:
+        logs.debug('Using weather forecast value while waiting for sensor'.format(device))
+        temperature = weather.get_current_temperature()
         if temperature:
             event_handler.dispatch(TemperatureEvent(TemperatureEventType.DATA, temperature, 'weather_forecast', None, True))
-        time.sleep(1800)
 
-if _device_outside is None:
-    logs.warning('No outside sensor, using weather forecast instead'.format(device))
-    _forecast_monitoring_thread = Thread(target=temperature_monitoring_thread, name='Temperature forecast monitor')
-    _forecast_monitoring_thread.start()
+_forecast_monitoring_thread = Thread(target=temperature_monitoring_thread, name='Temperature forecast monitor')
+_forecast_monitoring_thread.start()
 
 # === Sensor health monitoring ===
 
