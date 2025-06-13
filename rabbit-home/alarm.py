@@ -161,14 +161,14 @@ def _enable_alarm(with_grace_time: bool = True):
     else:
         _enable_time = time.time() - _ENABLE_GRACE_TIME_SECONDS - 1
     datastore.set(_DATASTORE_ALARM_ENABLED, True)
-    cameras.start_monitoring(topic=_notification_topic)
+    cameras.start_monitoring()
 
 def _disable_alarm():
     '''
     Operations for disabling alarm
     '''
     datastore.set(_DATASTORE_ALARM_ENABLED, False)
-    cameras.stop_monitoring(topic=_notification_topic)
+    cameras.stop_monitoring()
 
 def _trigger_alarm():
     '''
