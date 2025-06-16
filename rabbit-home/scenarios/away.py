@@ -64,8 +64,10 @@ def _away(force: bool):
             away = datastore.set(AWAY_DATASTORE_KEY, True)
             away_time = time.time()
         shutters_auto.operate('all', ShutterState.CLOSE)
-        for rabbit in rabbits.get_all():
-            nabstate.set_sleeping(rabbit, sleeping=True, play_sound=False)
+        time.sleep(30) # Put rabbits to sleep after a delay
+        if away: # In case away mode got cancelled quickly
+            for rabbit in rabbits.get_all():
+                nabstate.set_sleeping(rabbit, sleeping=True, play_sound=False)
     else:
         logs.info('Already in Away mode, nothing to do')
 
