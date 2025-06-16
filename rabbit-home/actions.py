@@ -5,6 +5,8 @@
 # By ORelio (c) 2024 - CDDL 1.0
 # ===============================================================
 
+from threading import Thread
+
 import json
 import requests
 
@@ -112,13 +114,12 @@ class Action:
 class MultipleActions(Action):
     '''
     Holds multiple actions at once.
-    Actions will run sequentially; if an action crashes, the next one will not run.
     '''
     def __init__(self, actions: list):
         self.actions = actions
     def run(self, event_type = None, rabbit = None, secondary_action: bool = False):
         for action in self.actions:
-            action.run(event_type, rabbit, secondary_action)
+            Thread(target=action.run, args=[event_type, rabbit, secondary_action], name=str(action)).start()
     def __repr__(self):
         return 'MultipleActions({})'.format(', '.join([str(action) for action in self.actions]))
 
