@@ -328,5 +328,6 @@ def operate(shutter: str, state: ShutterState, target_half_state = None) -> bool
                     _shutter_state_percent[shutter] = 100
                 else:
                     _shutter_state_percent[shutter] = None
+                datastore.set(_SHUTTER_STATE_DATASTORE, _shutter_state_percent)
 
     return True
