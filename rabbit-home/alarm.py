@@ -5,7 +5,7 @@
 # By ORelio (c) 2025 - CDDL 1.0
 # ===========================================
 
-from threading import Lock
+from threading import Thread, Lock
 from configparser import ConfigParser
 
 import time
@@ -170,9 +170,9 @@ def _disable_alarm():
     datastore.set(_DATASTORE_ALARM_ENABLED, False)
     cameras.stop_monitoring()
 
-def _trigger_alarm():
+def _trigger_alarm_thread():
     '''
-    Trigger the alarm
+    Trigger the alarm (underlying thread)
     '''
     # TODO ring alarm bell
     priority = notifications.Priority.HIGHEST
@@ -187,6 +187,12 @@ def _trigger_alarm():
                 synchronous=True,
             )
         priority = notifications.Priority.LOWEST
+
+def _trigger_alarm():
+    '''
+    Trigger the alarm
+    '''
+    Thread(target=_trigger_alarm_thread, name='Triggered Alarm').start()
 
 def _opening_event_callback(opening_name: str, state: OpenState, shutter_name: str = None, rabbit_name: str = None, is_front_door: bool = False):
     '''
