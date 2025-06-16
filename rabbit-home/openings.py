@@ -9,6 +9,7 @@ from threading import Lock
 from configparser import ConfigParser
 from enum import Enum
 
+import datastore
 import enocean
 import rabbits
 
@@ -24,7 +25,8 @@ config = ConfigParser()
 config.read('config/openings.ini')
 
 _data_lock = Lock()
-_opening_state = {}
+_DATASTORE_IS_CLOSED = 'openings.closed'
+_is_closed = datastore.get(_DATASTORE_IS_CLOSED, {})
 
 _opening_to_device = {}
 _device_to_opening = {}
@@ -81,6 +83,14 @@ for rabbit in _rabbit_to_openings:
 
 # == State API ==
 
+def bool_to_openstate(closed: bool) -> OpenState:
+    '''
+    Convert closed: bool to OpenState
+    '''
+    if closed is None:
+        return OpenState.UNKNOWN
+    return OpenState.CLOSED if closed else OpenState.OPEN
+
 def get_current_state(opening: str = None, shutter: str = None) -> OpenState:
     '''
     Get current opening state by opening or shutter name
@@ -92,7 +102,7 @@ def get_current_state(opening: str = None, shutter: str = None) -> OpenState:
         opening = get_opening_from_shutter(shutter)
         if not shutter:
             raise ValueError('Unknown opening for shutter: {}'.format(shutter))
-    return _opening_state.get(shutter, OpenState.UNKNOWN)
+    return bool_to_openstate(_is_closed.get(shutter, None))
 
 # == Data APIs ==
 
@@ -139,12 +149,13 @@ def _enocean_callback(sender_name: str, contact_event: object):
     Find which button of which switch was pressed, and run the associated action.
     '''
     device = 'enocean:{}'.format(sender_name.lower())
-    state = OpenState.CLOSED if contact_event.close else OpenState.OPEN
+    closed = contact_event.close
 
     if device in _device_to_opening:
         opening_name = _device_to_opening[device]
         with _data_lock:
-            _opening_state[opening_name] = state
-        event_handler.dispatch(opening_name, state, get_shutter_from_opening(opening_name), get_rabbit_from_opening(opening_name), opening_name == _front_door)
+            _is_closed[opening_name] = closed
+            datastore.set(_DATASTORE_IS_CLOSED, _is_closed)
+        event_handler.dispatch(opening_name, bool_to_openstate(closed), get_shutter_from_opening(opening_name), get_rabbit_from_opening(opening_name), opening_name == _front_door)
 
 enocean.contact_event_handler.subscribe(_enocean_callback)
