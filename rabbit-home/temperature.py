@@ -141,6 +141,19 @@ def get_state_outside() -> TemperatureEventType:
     '''
     return _state_outside
 
+def get_state_today() -> TemperatureEventType:
+    '''
+    Get today temperature state according to weather forecast or current temperature
+    returns temperature state (NORMAL, HOT or COLD) or NORMAL if data is unavailable
+    '''
+    weather_forecast_min = weather.get_today_minimum_temperature()
+    weather_forecast_max = weather.get_today_maximum_temperature()
+    if weather_forecast_min and weather_forecast_min < _threshold_cold_forecast:
+        return TemperatureEventType.COLD
+    if weather_forecast_max and weather_forecast_max > _threshold_hot_forecast:
+        return TemperatureEventType.HOT
+    return get_state_outside()
+
 def _get_temperature_value(sensor: str = None, rabbit: str = None, return_state: bool = False) -> float:
     '''
     Get current temperature for the specified sensor or rabbit
@@ -230,7 +243,7 @@ def _threshold_check(outside: bool, current_state: TemperatureEventType, current
 
 def _event_threshold_generator(event: TemperatureEvent):
     '''
-    Monitor DATA events and generate additional temperature events (COLD, HOT, BACK_TO_NORMAL) when needed
+    Monitor DATA events and generate additional temperature events (COLD, HOT, back to NORMAL) when needed
     '''
     global _state_outside
     state_change = None

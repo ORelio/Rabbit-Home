@@ -296,7 +296,7 @@ def operate(shutter: str, state: ShutterState, target_half_state = None, direct_
     if state == ShutterState.AUTO:
         dayphase = daycycle.get_state()
         season = daycycle.get_season()
-        temp_state = temperature.get_state_outside()
+        temp_state = temperature.get_state_today()
         preset = ShutterPreset.find_most_appropriate(_shutter_to_presets[shutter], dayphase=dayphase, season=season, temp=temp_state)
         logs.info('Auto-Selected state for shutter={}, dayphase={}, season={}, temperature={}: {}'.format(shutter, dayphase.name, season.name, temp_state.name, preset))
         if preset is None:
