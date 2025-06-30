@@ -15,6 +15,7 @@ from nabstate import nabstate_api
 from scenarios import scenarios_api
 from pcstate import pcstate_api
 from soundplayer import soundplayer_api
+from webui import web_ui
 
 config = ConfigParser()
 config.read('config/httpserver.ini')
@@ -28,6 +29,7 @@ app.register_blueprint(nabstate_api)
 app.register_blueprint(scenarios_api)
 app.register_blueprint(pcstate_api)
 app.register_blueprint(soundplayer_api)
+app.register_blueprint(web_ui)
 
 soundplayer.set_base_url(url)
 

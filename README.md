@@ -50,6 +50,7 @@ Here is a quick list of each module's purpose:
 | [`switches.py`](rabbit-home/switches.py)           | [`switches.ini`](rabbit-home/config/switches.ini)           | Map switch/remote button events from enocean.py to actions set in configuration.
 | [`temperature.py`](rabbit-home/switches.py)        | [`temperature.ini`](rabbit-home/config/temperature.ini)     | Monitor temperature sensors from enocean.py and generate Hot/Cold temperature events for use by scenarios.
 | [`weather.py`](rabbit-home/weather.py)             | See daycycle.ini                                            | Retrieve weather forecast from [meteofrance-api](https://github.com/hacf-fr/meteofrance-api) for the location set in daycycle.ini and make it available to other modules.
+| [`webui.py`](rabbit-home/webui.py)                 | [`webui.ini`](rabbit-home/config/webui.ini)                 | Optional web dashboard for interacting with the framework.
 
 ### Scenarios
 
