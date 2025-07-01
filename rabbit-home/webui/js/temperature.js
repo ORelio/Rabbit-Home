@@ -10,25 +10,25 @@ var Temperature = {
 
                 // Create node in list if not present yet
                 if (document.getElementById('temperature_' + sensor + '_value') === null) {
-                    var li = document.createElement('li');
-                    li.style["width"] = (100 / sensors.length).toString() + '%';
+                    var td = document.createElement('td');
+                    td.style["width"] = (100 / sensors.length).toString() + '%';
 
                     var span_name = document.createElement('div');
                     span_name.innerText = Tools.UpFirst(sensor);
                     span_name.className = 'name';
-                    li.appendChild(span_name);
+                    td.appendChild(span_name);
 
                     var span_value = document.createElement('div');
                     span_value.id = 'temperature_' + sensor + '_value';
                     span_value.className = 'digits';
-                    li.appendChild(span_value);
+                    td.appendChild(span_value);
 
                     var span_time = document.createElement('div');
                     span_time.id = 'temperature_' + sensor + '_time';
                     span_time.className = 'refresh_time';
-                    li.appendChild(span_time);
+                    td.appendChild(span_time);
 
-                    document.getElementById('temperature_sensors').appendChild(li);
+                    document.getElementById('temperature_sensors').appendChild(td);
                 }
 
                 document.getElementById('temperature_' + sensor + '_value').innerText = result[sensor].temperature ? result[sensor].temperature.toFixed(1) : '--.-';

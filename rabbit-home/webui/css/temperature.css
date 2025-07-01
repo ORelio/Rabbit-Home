@@ -1,12 +1,5 @@
-#temperature_sensors {
-	list-style-type: none;
-	padding: 0;
+#temperature_sensors_table {
 	width: 100%;
-	text-align: center;
-}
-
-#temperature_sensors li {
-	display: inline-block;
 }
 
 #temperature_sensors div {

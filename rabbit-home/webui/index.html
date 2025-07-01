@@ -13,24 +13,75 @@
         <div id="debug"></div>
         <h1>Météo</h1>
         <hr />
-        <div id="weather">
-            <div class="today">
-                <span class="name">Aujourd'hui</span>
-                <img id="today_img" />
-                <table>
-                    <tr>
-                        <td id="weather_minimum" class="digits small"></td>
-                        <td id="weather_current" class="digits"></td>
-                        <td id="weather_maximum" class="digits small"></td>
-                    </tr>
-                </table>
-                <div id="weather_refreshed" class="refresh_time"></div>
-            </div>
-        </div>
+        <table id="weather">
+            <tr>
+            <td class="today">
+                <div class="title">Aujourd'hui</div>
+                <img id="weather_today_image" />
+                <div id="weather_today_description" class="description"></div>
+                <div class="digits">
+                    <span id="weather_today_maximum"></span>
+                    <span id="weather_today_minimum" class="minimum"></span>
+                </div>
+            </td>
+            <td class="forecast">
+                <div class="title">Prévisions</div>
+                <div class="row">
+                    <span id="weather_1_day" class="day"></span>
+                    <img id="weather_1_image" />
+                    <span class="digits">
+                        <span id="weather_1_maximum"></span>
+                        <span id="weather_1_minimum" class="minimum">
+                    </span>
+                </div>
+                <div class="row">
+                    <span id="weather_2_day" class="day"></span>
+                    <img id="weather_2_image" />
+                    <span class="digits">
+                        <span id="weather_2_maximum"></span>
+                        <span id="weather_2_minimum" class="minimum">
+                    </span>
+                </div>
+                <div class="row">
+                    <span id="weather_3_day" class="day"></span>
+                    <img id="weather_3_image" />
+                    <span class="digits">
+                        <span id="weather_3_maximum"></span>
+                        <span id="weather_3_minimum" class="minimum">
+                    </span>
+                </div>
+                <div class="row">
+                    <span id="weather_4_day" class="day"></span>
+                    <img id="weather_4_image" />
+                    <span class="digits">
+                        <span id="weather_4_maximum"></span>
+                        <span id="weather_4_minimum" class="minimum">
+                    </span>
+                </div>
+                <div class="row">
+                    <span id="weather_5_day" class="day"></span>
+                    <img id="weather_5_image" />
+                    <span class="digits">
+                        <span id="weather_5_maximum"></span>
+                        <span id="weather_5_minimum" class="minimum">
+                    </span>
+                </div>
+                <div class="row">
+                    <span id="weather_6_day" class="day"></span>
+                    <img id="weather_6_image" />
+                    <span class="digits">
+                        <span id="weather_6_maximum"></span>
+                        <span id="weather_6_minimum" class="minimum">
+                    </span>
+                </div>
+            </td>
+        </table>
         <hr />
-        <ul id="temperature_sensors">
-            <!-- Filled in dynamically -->
-        </ul>
+        <table id="temperature_sensors_table">
+            <tr id="temperature_sensors">
+                <!-- Filled in dynamically -->
+            </tr>
+        </table>
         <script type="text/javascript">
             Weather.Initialize();
             Temperature.Initialize();

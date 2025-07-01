@@ -14,7 +14,7 @@ from threading import Lock
 import time
 
 from logs import logs
-from daycycle import _latitude, _longitude
+from daycycle import _latitude, _longitude, is_day
 
 _lock = Lock()
 _last_refresh = None
@@ -82,6 +82,19 @@ def get_today_maximum_temperature():
         return None
     return _last_forecast_cache.today_forecast['T']['max']
 
+def get_daily_forecast():
+    '''
+    Get daily forecast for today and subsequent days (for HTTP API)
+    '''
+    results = []
+    for entry in _last_forecast_cache.daily_forecast:
+        results.append({
+            'minimum': entry['T']['min'],
+            'maximum': entry['T']['max'],
+            'description': entry['weather12H']['desc'],
+        })
+    return results
+
 _refresh_forecast()
 
 # === HTTP API ===
@@ -90,9 +103,12 @@ weather_api = Blueprint('weather_api', __name__)
 
 @weather_api.route('/api/v1/weather', methods = ['GET'])
 def weather_api_get():
+    forecast = get_daily_forecast()
+    today = forecast.pop(0)
+    today['current'] = get_current_temperature()
     return jsonify({
-        'minimum': get_today_minimum_temperature(),
-        'current': get_current_temperature(),
-        'maximum': get_today_maximum_temperature(),
+        'is_day': is_day(),
+        'today': today,
+        'forecast': forecast,
         'refreshed': _last_refresh,
     })
