@@ -16,8 +16,8 @@ path = config.get('WebUI', 'path')
 web_ui = Blueprint('web_ui', __name__)
 
 @web_ui.route(path)
-@web_ui.route(path + '<file_name>')
-def serve_ui(file_name = 'index.html'):
+@web_ui.route(path + '<path:file_path>')
+def serve_ui(file_path = 'index.html'):
     if enabled:
-        return send_from_directory('webui', file_name)
+        return send_from_directory('webui', file_path)
     return 'Forbidden', 403

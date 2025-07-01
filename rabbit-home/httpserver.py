@@ -15,6 +15,8 @@ from nabstate import nabstate_api
 from scenarios import scenarios_api
 from pcstate import pcstate_api
 from soundplayer import soundplayer_api
+from temperature import temperature_api
+from weather import weather_api
 from webui import web_ui
 
 config = ConfigParser()
@@ -29,6 +31,8 @@ app.register_blueprint(nabstate_api)
 app.register_blueprint(scenarios_api)
 app.register_blueprint(pcstate_api)
 app.register_blueprint(soundplayer_api)
+app.register_blueprint(temperature_api)
+app.register_blueprint(weather_api)
 app.register_blueprint(web_ui)
 
 soundplayer.set_base_url(url)

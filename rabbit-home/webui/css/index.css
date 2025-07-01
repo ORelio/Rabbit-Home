@@ -1,0 +1,64 @@
+@charset "utf-8";
+
+@font-face {
+	font-family: "Roboto";
+	font-style: normal;
+	font-weight: normal;
+	src: local("Roboto Thin"), url("../font/roboto.woff") format("woff");
+}
+
+@font-face {
+	font-family: "Roboto Condensed";
+	font-style: normal;
+	font-weight: normal;
+	src: local("Roboto Condensed Thin"), url("../font/roboto-condensed.woff") format("woff");
+}
+
+@font-face {
+	font-family: "PF Tempesta Seven";
+	font-style: normal;
+	font-weight: normal;
+	src: local("PF Tempesta Seven"), url("../font/pf-tempesta-seven.woff") format("woff");
+}
+
+@font-face {
+	font-family: "Wingdings 3";
+	font-style: normal;
+	font-weight: normal;
+	src: local("Wingdings 3"), url("../font/wingdings-3.woff") format("woff");
+}
+
+body {
+	font-family: "Roboto";
+	font-size: 1.8em;
+	padding: 0 30px;
+}
+
+hr {
+	border-top: 1px solid gray;
+}
+
+th {
+	font-weight: normal;
+}
+
+.name {
+	font-family: "Roboto Condensed";
+}
+
+.digits {
+	font-family: "PF Tempesta Seven";
+	padding-bottom: 0.2em;
+}
+
+.refresh_time {
+	font-size: 0.5em;
+	width: 100%;
+	text-align: center;
+}
+
+.refresh_time::before {
+	font-family: "Wingdings 3";
+	content: "Q"; /* ↺ */
+	padding-right: 0.5em;
+}

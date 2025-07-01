@@ -1,0 +1,14 @@
+#temperature_sensors {
+	list-style-type: none;
+	padding: 0;
+	width: 100%;
+	text-align: center;
+}
+
+#temperature_sensors li {
+	display: inline-block;
+}
+
+#temperature_sensors div {
+	text-align: center;
+}

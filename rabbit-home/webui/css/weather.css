@@ -1,0 +1,21 @@
+#weather {
+	width: 100%;
+	text-align: center;
+}
+
+#weather .today {
+	width: 33%;
+}
+
+#weather .small {
+	font-size: 0.6em;
+}
+
+#weather table {
+	width: 100%;
+}
+
+#weather th,
+#weather td {
+	width: 33%;
+}

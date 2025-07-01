@@ -3,17 +3,21 @@
 # =====================================================
 # weather - Retrieve weather forecast from Meteo France
 # https://github.com/hacf-fr/meteofrance-api
-# By ORelio (c) 2024 - CDDL 1.0
+# By ORelio (c) 2024-2025 - CDDL 1.0
 # =====================================================
 
 from meteofrance_api.client import MeteoFranceClient, Place
-from daycycle import _latitude, _longitude
+from flask import Blueprint, jsonify
 from datetime import datetime
 from threading import Lock
 
+import time
+
 from logs import logs
+from daycycle import _latitude, _longitude
 
 _lock = Lock()
+_last_refresh = None
 _last_refresh_hour = None
 _last_forecast_cache = None
 
@@ -30,12 +34,14 @@ def _refresh_forecast():
     Refresh forecast cache, avoids hammering the Meteo France API
     Cache expires every hour so API can be refreshed once per hour
     '''
+    global _last_refresh
     global _last_refresh_hour
     global _last_forecast_cache
     _lock.acquire()
     current_hour = datetime.now().strftime('%Y-%m-%d-%H')
     if current_hour != _last_refresh_hour:
         _last_refresh_hour = current_hour
+        _last_refresh = time.time()
         try:
             client = MeteoFranceClient()
             _last_forecast_cache = client.get_forecast_for_place(Place({'lat': _latitude, 'lon': _longitude}))
@@ -77,3 +83,16 @@ def get_today_maximum_temperature():
     return _last_forecast_cache.today_forecast['T']['max']
 
 _refresh_forecast()
+
+# === HTTP API ===
+
+weather_api = Blueprint('weather_api', __name__)
+
+@weather_api.route('/api/v1/weather', methods = ['GET'])
+def weather_api_get():
+    return jsonify({
+        'minimum': get_today_minimum_temperature(),
+        'current': get_current_temperature(),
+        'maximum': get_today_maximum_temperature(),
+        'refreshed': _last_refresh,
+    })

@@ -5,6 +5,7 @@
 # By ORelio (c) 2024 - CDDL 1.0
 # ======================================================================================================================
 
+from flask import Blueprint, jsonify
 from configparser import ConfigParser
 from dataclasses import dataclass
 from threading import Thread, Lock
@@ -350,3 +351,17 @@ def sensor_health_monitoring_thread():
 if len(_device_to_name) > 0:
     _health_monitoring_thread = Thread(target=sensor_health_monitoring_thread, name='Temperature sensor health monitor')
     _health_monitoring_thread.start()
+
+# === HTTP API ===
+
+temperature_api = Blueprint('temperature_api', __name__)
+
+@temperature_api.route('/api/v1/temperature', methods = ['GET'])
+def temperature_api_get():
+    device_info = {}
+    for device in _device_to_name:
+        device_info[_device_to_name[device]] = {
+            'temperature': _last_temperature_value.get(device, None),
+            'time': _last_temperature_time.get(device, None),
+        }
+    return jsonify(device_info)

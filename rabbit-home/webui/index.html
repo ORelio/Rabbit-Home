@@ -2,8 +2,38 @@
 <html>
     <head>
         <title>Rabbit Home Dashboard</title>
+        <link rel="stylesheet" href="css/index.css" />
+        <link rel="stylesheet" href="css/weather.css" />
+        <link rel="stylesheet" href="css/temperature.css" />
+        <script src="js/index.js"></script>
+        <script src="js/weather.js"></script>
+        <script src="js/temperature.js"></script>
     </head>
     <body>
-        <h1>Hello World</h1>
+        <div id="debug"></div>
+        <h1>Météo</h1>
+        <hr />
+        <div id="weather">
+            <div class="today">
+                <span class="name">Aujourd'hui</span>
+                <img id="today_img" />
+                <table>
+                    <tr>
+                        <td id="weather_minimum" class="digits small"></td>
+                        <td id="weather_current" class="digits"></td>
+                        <td id="weather_maximum" class="digits small"></td>
+                    </tr>
+                </table>
+                <div id="weather_refreshed" class="refresh_time"></div>
+            </div>
+        </div>
+        <hr />
+        <ul id="temperature_sensors">
+            <!-- Filled in dynamically -->
+        </ul>
+        <script type="text/javascript">
+            Weather.Initialize();
+            Temperature.Initialize();
+        </script>
     </body>
 </html>
