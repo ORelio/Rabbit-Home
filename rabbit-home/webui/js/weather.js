@@ -4,13 +4,20 @@ var Weather = {
 
     Refresh: function() {
         window.API.GET('/api/v1/weather', function(result) {
-            document.getElementById('weather_today_image').src = Weather.Description2Image(result.today.description, result.is_day);
-            document.getElementById('weather_today_description').innerText = result.today.description;
-            document.getElementById('weather_today_minimum').innerText = result.today.minimum.toFixed(0);
-            document.getElementById('weather_today_maximum').innerText = result.today.maximum.toFixed(0);
+            if (result.today) {
+                document.getElementById('weather_today_image').src = Weather.Description2Image(result.today.description, result.is_day);
+                document.getElementById('weather_today_description').innerText = result.today.description;
+                document.getElementById('weather_today_minimum').innerText = result.today.minimum.toFixed(0);
+                document.getElementById('weather_today_maximum').innerText = result.today.maximum.toFixed(0);
+            } else {
+                document.getElementById('weather_today_image').src = Weather.Description2Image('UNKNOWN', true);
+                document.getElementById('weather_today_description').innerText = 'Attente données';
+                document.getElementById('weather_today_minimum').innerText = '--';
+                document.getElementById('weather_today_maximum').innerText = '--';
+            }
             for (var i = 1; i <= 6; i++) {
                 document.getElementById('weather_' + i.toString() + '_day').innerText = Weather.DayOfWeek(i);
-                if (i < result.forecast.length) {
+                if (result.forecast && i < result.forecast.length) {
                     document.getElementById('weather_' + i.toString() + '_image').src = Weather.Description2Image(result.forecast[i].description, true);
                     document.getElementById('weather_' + i.toString() + '_minimum').innerText = result.forecast[i].minimum.toFixed(0);
                     document.getElementById('weather_' + i.toString() + '_maximum').innerText = result.forecast[i].maximum.toFixed(0);
@@ -20,6 +27,7 @@ var Weather = {
                     document.getElementById('weather_' + i.toString() + '_maximum').innerText = '--';
                 }
             }
+            document.getElementById('weather_refreshed').innerText = Tools.Timestamp2Time(result.refreshed);
         });
     },
 

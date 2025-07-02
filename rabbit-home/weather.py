@@ -52,7 +52,9 @@ def _refresh_forecast():
                 _last_forecast_cache.today_forecast['T']['max']))
         except:
             logs.error('Failed to refresh forecast, API seems unreachable.')
-            _last_forecast_cache = None
+            last_midnight = datetime.now().replace(hour=0, minute=0, second=0).timestamp()
+            if _last_refresh < last_midnight: # clear cache if data was for yesterday
+                _last_forecast_cache = None
     _lock.release()
 
 def get_current_temperature():
@@ -86,6 +88,8 @@ def get_daily_forecast():
     '''
     Get daily forecast for today and subsequent days (for HTTP API)
     '''
+    if _last_forecast_cache is None:
+        return None
     results = []
     for entry in _last_forecast_cache.daily_forecast:
         if entry['T']['min'] is None \
@@ -108,8 +112,10 @@ weather_api = Blueprint('weather_api', __name__)
 @weather_api.route('/api/v1/weather', methods = ['GET'])
 def weather_api_get():
     forecast = get_daily_forecast()
-    today = forecast.pop(0)
-    today['current'] = get_current_temperature()
+    today = None
+    if forecast:
+        today = forecast.pop(0)
+        today['current'] = get_current_temperature()
     return jsonify({
         'is_day': is_day(),
         'today': today,

@@ -28,7 +28,7 @@
 #weather .today img {
 	display: block;
 	margin: 0 auto 0.25em auto;
-	width: 73%;
+	width: 65%;
 }
 
 #weather .today .description {
@@ -49,13 +49,11 @@
 #weather .forecast .day {
 	display: inline-block;
 	text-align: center;
-	text-align: center;
 	width: 2.5em;
 }
 
 #weather .forecast .digits {
 	display: inline-block;
-	text-align: center;
 	text-align: center;
 	width: 5em;
 }
