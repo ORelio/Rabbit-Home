@@ -88,6 +88,10 @@ def get_daily_forecast():
     '''
     results = []
     for entry in _last_forecast_cache.daily_forecast:
+        if entry['T']['min'] is None \
+          or entry['T']['max'] is None \
+          or entry['weather12H']['desc'] is None:
+            break
         results.append({
             'minimum': entry['T']['min'],
             'maximum': entry['T']['max'],

@@ -10,9 +10,15 @@ var Weather = {
             document.getElementById('weather_today_maximum').innerText = result.today.maximum.toFixed(0);
             for (var i = 1; i <= 6; i++) {
                 document.getElementById('weather_' + i.toString() + '_day').innerText = Weather.DayOfWeek(i);
-                document.getElementById('weather_' + i.toString() + '_image').src = Weather.Description2Image(result.forecast[i].description, true);
-                document.getElementById('weather_' + i.toString() + '_minimum').innerText = result.forecast[i].minimum.toFixed(0);
-                document.getElementById('weather_' + i.toString() + '_maximum').innerText = result.forecast[i].maximum.toFixed(0);
+                if (i < result.forecast.length) {
+                    document.getElementById('weather_' + i.toString() + '_image').src = Weather.Description2Image(result.forecast[i].description, true);
+                    document.getElementById('weather_' + i.toString() + '_minimum').innerText = result.forecast[i].minimum.toFixed(0);
+                    document.getElementById('weather_' + i.toString() + '_maximum').innerText = result.forecast[i].maximum.toFixed(0);
+                } else {
+                    document.getElementById('weather_' + i.toString() + '_image').src = Weather.Description2Image('UNKNOWN', true);
+                    document.getElementById('weather_' + i.toString() + '_minimum').innerText = '--';
+                    document.getElementById('weather_' + i.toString() + '_maximum').innerText = '--';
+                }
             }
         });
     },
