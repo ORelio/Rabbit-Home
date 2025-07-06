@@ -18,6 +18,7 @@ import notifications
 import rabbits
 
 _lights = {}
+_channels = {}
 _default_brightness = {}
 _default_white = {}
 _default_transition = {}
@@ -30,14 +31,17 @@ _rabbit_to_lights = {}
 config = ConfigParser()
 config.read('config/lights.ini')
 
-API_SWITCH='light/0'
+API_SWITCH='light/{CHANNEL}'
 API_SETTINGS='settings/'
 
 # Load configuration file
 for light_name_raw in config.sections():
     light_name = light_name_raw.lower()
     light_ip = config.get(light_name_raw, 'IP')
+    light_channel = config.getint(light_name_raw, 'Channel', fallback=0)
     light_brightness = config.getint(light_name_raw, 'Brightness', fallback=100)
+    if light_channel < 0:
+        raise ValueError('Negative channel invalid for light: {}'.format(light_name_raw))
     if light_brightness < 1:
         light_brightness = 1
     if light_brightness > 100:
@@ -60,6 +64,7 @@ for light_name_raw in config.sections():
             _rabbit_to_lights[rabbit] = []
         _rabbit_to_lights[rabbit].append(light_name)
     _lights[light_name] = light_ip
+    _channels[light_name] = light_channel
     _default_brightness[light_name] = light_brightness
     _default_white[light_name] = light_white
     _default_transition[light_name] = light_transition
@@ -155,7 +160,7 @@ def _switch(thread_token: int, light: str, on: bool = False, brightness: int = N
 
                 # Switch light to desired brightness and color
                 if _command_tokens.get(light, 0) == thread_token:
-                    _api_request(light, API_SWITCH, arguments)
+                    _api_request(light, API_SWITCH.replace('{CHANNEL}', str(_channels[light])), arguments)
 
                 # Wait for transition to finish playing before restoring it
                 if original_transition != transition:
