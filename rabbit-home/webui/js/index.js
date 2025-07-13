@@ -85,6 +85,15 @@ var API = {
         if (typeof body_json !== 'string' || body_json.length == 0) {
             body_json = null;
         }
+        if (window.document.documentMode) {
+            // bypass IE11 XMLHttpRequest response caching
+            var timestamp = String(Date.now());
+            if (endpoint.indexOf('?') !== -1) {
+                endpoint = endpoint + '&_ts=' + timestamp;
+            } else {
+                endpoint = endpoint + '?_ts=' + timestamp;
+            }
+        }
         var xhr = new XMLHttpRequest();
         xhr.open(method, endpoint, true);
         xhr.setRequestHeader('Content-type', 'application/json');

@@ -1,4 +1,4 @@
-#weather {
+#weather table {
 	width: 100%;
 	text-align: center;
 }
@@ -28,7 +28,13 @@
 #weather .today img {
 	display: block;
 	margin: 0 auto 0.25em auto;
-	width: 65%;
+	height: 25vh;
+}
+
+@media all and (-ms-high-contrast: none), (-ms-high-contrast: active) {
+	#weather .today img {
+		height: 20vh;
+	}
 }
 
 #weather .today .description {
@@ -39,6 +45,16 @@
 
 #weather .forecast {
 	width: 50%;
+}
+
+#weather .forecast .row {
+	line-height: 1.4em;
+}
+
+@media all and (-ms-high-contrast: none), (-ms-high-contrast: active) {
+	#weather .forecast .row {
+		line-height: 1.6em;
+	}
 }
 
 #weather .forecast img {
@@ -56,4 +72,14 @@
 	display: inline-block;
 	text-align: center;
 	width: 5em;
+}
+
+/* Temperature */
+
+#temperature_sensors_table {
+	width: 100%;
+}
+
+#temperature_sensors div {
+	text-align: center;
 }

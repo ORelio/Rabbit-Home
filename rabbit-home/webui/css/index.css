@@ -30,13 +30,20 @@
 
 body {
 	font-family: "Roboto";
-	font-size: 1.8em;
-	padding: 0 30px;
+	font-size: 3.2vh;
+	line-height: 5.7vh;
+	padding: 0 5vw;
+}
+
+@media all and (-ms-high-contrast: none), (-ms-high-contrast: active) {
+	body {
+		line-height: 5vh;
+	}
 }
 
 hr {
 	border-top: 1px solid gray;
-	margin: 1em 0;
+	margin: 3vh 0;
 }
 
 th {
@@ -49,11 +56,12 @@ th {
 
 .digits {
 	font-family: "PF Tempesta Seven";
-	padding-bottom: 0.2em;
+	padding-bottom: 1vh;
 }
 
 .refresh_time {
 	font-size: 0.5em;
+	line-height: 2.5em;
 	width: 100%;
 	text-align: center;
 	color: dimgray;
@@ -62,5 +70,5 @@ th {
 .refresh_time::before {
 	font-family: "Wingdings 3";
 	content: "Q"; /* ↺ */
-	padding-right: 0.5em;
+	padding-right: 1vw;
 }
