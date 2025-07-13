@@ -141,6 +141,8 @@ def is_reachable(camera: str, timeout_seconds: int = 10) -> bool:
           and len(e.args[0].args) > 1 \
           and str(e.args[0].args[1]).strip() == 'RTSP/1.0 200 OK':
             return True
+    except requests.exceptions.ReadTimeout as e2:
+        return False
     return False
 
 def wait_for_camera(camera: str, timeout_seconds = 120) -> bool:
