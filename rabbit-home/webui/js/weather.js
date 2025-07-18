@@ -116,10 +116,10 @@ var Weather = {
             "Brouillard": "fog",
             "Brouillard givrant": "fog-snow",
             "Brume": "fog",
-            "Pluies orageuses": "storm",
-            "Pluie orageuses": "storm",
+            "Pluies orageuses": "storm-rain",
+            "Pluie orageuses": "storm-rain",
             "Orages": "storm",
-            "Averses orageuses": "storm",
+            "Averses orageuses": "storm-rain",
             "Risque d'orages": "storm",
         };
         if (mapping[description] !== undefined) {
