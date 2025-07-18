@@ -19,9 +19,9 @@ var Weather = {
             for (var i = 1; i <= 6; i++) {
                 document.getElementById('weather_' + i.toString() + '_day').innerText = Weather.DayOfWeek(i);
                 if (result.forecast && i < result.forecast.length) {
-                    document.getElementById('weather_' + i.toString() + '_image').src = Weather.Description2Image(result.forecast[i].description, true);
-                    document.getElementById('weather_' + i.toString() + '_minimum').innerText = result.forecast[i].minimum.toFixed(0);
-                    document.getElementById('weather_' + i.toString() + '_maximum').innerText = result.forecast[i].maximum.toFixed(0);
+                    document.getElementById('weather_' + i.toString() + '_image').src = Weather.Description2Image(result.forecast[i - 1].description, true);
+                    document.getElementById('weather_' + i.toString() + '_minimum').innerText = result.forecast[i - 1].minimum.toFixed(0);
+                    document.getElementById('weather_' + i.toString() + '_maximum').innerText = result.forecast[i - 1].maximum.toFixed(0);
                 } else {
                     document.getElementById('weather_' + i.toString() + '_image').src = Weather.Description2Image('UNKNOWN', true);
                     document.getElementById('weather_' + i.toString() + '_minimum').innerText = '--';
