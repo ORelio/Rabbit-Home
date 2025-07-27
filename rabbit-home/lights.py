@@ -154,7 +154,10 @@ def _switch(thread_token: int, light: str, on: bool = False, brightness: int = N
             if _command_tokens.get(light, 0) == thread_token:
 
                 # Temporarily update the light transition setting if needed
-                original_transition = _api_request(light, API_SETTINGS)['transition']
+                original_transition = transition
+                original_settings = _api_request(light, API_SETTINGS)
+                if 'transition' in original_settings:
+                    original_transition = original_settings['transition']
                 if original_transition != transition:
                     _api_request(light, API_SETTINGS, {'transition': str(transition)})
 
