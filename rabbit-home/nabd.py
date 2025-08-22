@@ -68,52 +68,59 @@ def _ssh_connect_and_read(rabbit: str):
     '''
     nabaztag_ip = rabbits.get_ip(rabbit)
     while True:
-        if nabaztag_ip != '127.0.0.1':
-            # Connect to nabd over SSH (service installed on a different system, the local system must have an ssh key authorized on the nabaztag)
-            nabd_process = subprocess.Popen([shutil.which('ssh'), '-T', 'pi@' + nabaztag_ip, 'nc -4 localhost 10543'],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE)
-        else:
-            # Connect to nabd locally (service installed directly on the nabaztag)
-            nabd_process = subprocess.Popen([shutil.which('nc'), '-4', 'localhost', '10543'],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE)
+        try:
+            if nabaztag_ip != '127.0.0.1':
+                # Connect to nabd over SSH (service installed on a different system, the local system must have an ssh key authorized on the nabaztag)
+                nabd_process = subprocess.Popen([shutil.which('ssh'), '-T', 'pi@' + nabaztag_ip, 'nc -4 localhost 10543'],
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE)
+            else:
+                # Connect to nabd locally (service installed directly on the nabaztag)
+                nabd_process = subprocess.Popen([shutil.which('nc'), '-4', 'localhost', '10543'],
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE)
 
-        # Make subprocess available to other threads for writing to stdin
-        with _subprocess_lock:
-            _subprocesses[nabaztag_ip] = nabd_process
+            # Make subprocess available to other threads for writing to stdin
+            with _subprocess_lock:
+                _subprocesses[nabaztag_ip] = nabd_process
 
-        # Subscribe to all idle events after connecting to nabd
-        publish(nabaztag_ip, [
-            {"type":"mode", "mode":"idle", "events":["asr/*", "button", "ears", "rfid/*"]}
-        ])
+            # Subscribe to all idle events after connecting to nabd
+            publish(nabaztag_ip, [
+                {"type":"mode", "mode":"idle", "events":["asr/*", "button", "ears", "rfid/*"]}
+            ])
 
-        # Read messages coming from nabd
-        while True:
-            outlst = []
-            reader_t = Thread(target=_ssh_read, args=[nabd_process, outlst], name='Nabd SSH readline')
-            reader_t.start()
-            reader_t.join(15)
-
-            # Make sure SSH session is still alive, sending keepalives when unsure
-            # Thread should read a message and exit, thread still alive means no message from nabd yet
-            if reader_t.is_alive():
-                publish(nabaztag_ip, {"type":"gestalt"})
+            # Read messages coming from nabd
+            while True:
+                outlst = []
+                reader_t = Thread(target=_ssh_read, args=[nabd_process, outlst], name='Nabd SSH readline')
+                reader_t.start()
                 reader_t.join(15)
+
+                # Make sure SSH session is still alive, sending keepalives when unsure
+                # Thread should read a message and exit, thread still alive means no message from nabd yet
                 if reader_t.is_alive():
-                    # At this point, a message should have been received in response to "gestalt" command
-                    # Thread still alive means no message back from nabd: assume connection lost
+                    publish(nabaztag_ip, {"type":"gestalt"})
+                    reader_t.join(15)
+                    if reader_t.is_alive():
+                        # At this point, a message should have been received in response to "gestalt" command
+                        # Thread still alive means no message back from nabd: assume connection lost
+                        nabd_process.kill()
+                        break
+                if len(outlst) == 0 or len(outlst[0]) == 0:
                     nabd_process.kill()
                     break
-            if len(outlst) == 0 or len(outlst[0]) == 0:
-                nabd_process.kill()
-                break
 
-            # Process message coming from nabd
-            nabd_message = json.loads(outlst[0].decode('utf-8').strip())
-            event_handler.dispatch(rabbits.get_name(nabaztag_ip), nabd_message)
+                # Process message coming from nabd
+                nabd_message = json.loads(outlst[0].decode('utf-8').strip())
+                event_handler.dispatch(rabbits.get_name(nabaztag_ip), nabd_message)
+
+        except OSError as os_error:
+            # Failed to run SSH
+            logs.error('Error connecting to rabbit {}:'.format(rabbit))
+            logs.error(os_error)
+            pass
 
         # Connection lost
         with _subprocess_lock:
