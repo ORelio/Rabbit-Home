@@ -6,6 +6,7 @@
 # By ORelio (c) 2024 - CDDL 1.0
 # ==============================================================================
 
+from flask import Blueprint, jsonify
 from threading import Lock
 
 import subprocess
@@ -16,6 +17,8 @@ from configparser import ConfigParser
 from logs import logs
 
 _devices = {}
+_device_state = {}
+_state_lock = Lock()
 
 _DEVICE_COMMAND="codesend"
 _SEND_COMMAND_DELAY=0.1
@@ -93,6 +96,8 @@ def switch(device: str, state: bool, sends: int = 3, delay_seconds: int = 1):
         state_str = 'ON' if state else 'OFF'
         logs.info('Setting state {} for device {} ({} send{})'.format(
             state_str, device, sends, 's' if sends > 1 else ''))
+        with _state_lock:
+            _device_state[device] = state
         for i in range(sends):
             with _command_lock:
                 subprocess.run([
@@ -119,3 +124,26 @@ for name in config.options('Plugs'):
         raise ValueError('Invalid plug data for {}: "{}". Expecting [01]{5}:[ABCDE]{1,5}'.format(display_name, device_code))
     _devices[display_name] = device_code
 logs.debug('Loaded {} plug aliases: {}'.format(len(_devices), ', '.join(list(_devices.keys()))))
+
+# === HTTP API ===
+
+plugs_api = Blueprint('plugs_api', __name__)
+
+@plugs_api.route('/api/v1/plugs/<device>', methods = ['GET'])
+def plugs433_api_get(device):
+    if not device or not device.lower() in _devices:
+        return jsonify({'success': False, 'message': 'Not Found'}), 404
+    device = device.lower()
+    with _state_lock:
+        return jsonify({'success': True, 'on': _device_state.get(device, None)})
+
+@plugs_api.route('/api/v1/plugs/<device>/<state>', methods = ['POST'])
+def plugs433_api_set(device, state):
+    if not device or not device.lower() in _devices:
+        return jsonify({'success': False, 'message': 'Not Found'}), 404
+    if not state or not state.upper() in ['ON', 'OFF']:
+        return jsonify({'success': False, 'message': 'Invalid parameter'}), 400
+    device = device.lower()
+    state = (state.upper() == 'ON')
+    switch(device, state)
+    return plugs433_api_get(device)

@@ -14,6 +14,7 @@ from logs import logs
 from nabstate import nabstate_api
 from scenarios import scenarios_api
 from pcstate import pcstate_api
+from plugs433 import plugs_api
 from soundplayer import soundplayer_api
 from temperature import temperature_api
 from weather import weather_api
@@ -30,6 +31,7 @@ app.logger = logs
 app.register_blueprint(nabstate_api)
 app.register_blueprint(scenarios_api)
 app.register_blueprint(pcstate_api)
+app.register_blueprint(plugs_api)
 app.register_blueprint(soundplayer_api)
 app.register_blueprint(temperature_api)
 app.register_blueprint(weather_api)
