@@ -22,6 +22,7 @@ _cameras = []
 _camera_locks = {}
 _camera_should_monitor = {}
 _camera_thread_token = {}
+_camera_socket_off_time = {}
 
 _TOKEN_INACTIVE = 0
 
@@ -62,6 +63,7 @@ for camera_name_raw in config.sections():
     camera_power_socket = config.get(camera_name_raw, 'PowerSocket', fallback=None)
     _cameras.append(camera_name)
     _camera_locks[camera_name] = Lock()
+    _camera_socket_off_time[camera_name] = 0
     _camera_should_monitor[camera_name] = False
     _camera_thread_token[camera_name] = _TOKEN_INACTIVE
     _camera_ip[camera_name] = camera_ip
@@ -167,12 +169,15 @@ def _capture_error(camera, message_format):
     '''
     Raise error in capture_and_send (internal)
     '''
-    logs.error(message_format.format(camera))
-    notifications.publish(
-        message=message_format.format(camera),
-        tags='x,video_camera',
-        topic=_camera_screenshot_channel[camera],
-    )
+    if _camera_socket_off_time[camera] + 60 > time.time():
+        logs.info('Camera just switched off, ignoring error: ' + message_format.format(camera))
+    else:
+        logs.error(message_format.format(camera))
+        notifications.publish(
+            message=message_format.format(camera),
+            tags='x,video_camera',
+            topic=_camera_screenshot_channel[camera],
+        )
 
 def _capture_and_send_thread(
         camera: str,
@@ -391,6 +396,7 @@ def start_monitoring(camera: str = None):
     for camera in cameras:
         logs.info('Starting monitoring for camera: {}'.format(camera))
         if _camera_power_socket[camera]:
+            _camera_socket_off_time[camera] = 0
             _switch_camera_socket(camera=camera, on=True)
         with _camera_locks[camera]:
             thread_token = round(time.time() * 1000)
@@ -408,6 +414,9 @@ def _stop_monitoring_thread(camera: str = None):
     '''
     cameras = _param_to_camera_list(camera)
     for camera in cameras:
+        if _camera_power_socket[camera]:
+            _camera_socket_off_time[camera] = time.time()
+            _switch_camera_socket(camera=camera, on=False)
         if _camera_thread_token[camera] == _TOKEN_INACTIVE:
             logs.debug('Monitoring already stopped for camera: {}'.format(camera))
         else:
@@ -419,8 +428,6 @@ def _stop_monitoring_thread(camera: str = None):
                 tags='stop_button,video_camera',
                 topic=_camera_screenshot_channel[camera],
             )
-            if _camera_power_socket[camera]:
-                _switch_camera_socket(camera=camera, on=False)
 
 def stop_monitoring(camera: str = None, synchronous: bool = False):
     '''
