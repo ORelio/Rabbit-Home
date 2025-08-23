@@ -38,7 +38,7 @@ def str2action(action: str, setting_name: str = None) -> 'Action':
      scenario:scenario_name[:{"arg1":"value", "arg2:"value"}]
      shutter:shutter_name:operation[/operation_on_release_long_press]
      plug:plug_name:on|off[/on|off <- operation_on_release_long_press]
-     light:light_name:on|off[/brightness=XX][/white=XX][/transition=XXX]
+     light:light_name:on|off[/brightness=XX][/white=XX][/transition=XXX][/secondary_state=on|off][/secondary_brightness=XX][/secondary_white=XX][/secondary_transition=XX]
      webhook:url <- example: http://example.com/?mywebhook
      alarm:on|off|0|1|2|3|4|5|6|7|8|9
      sleep[:rabbit_name]
@@ -53,6 +53,7 @@ def str2action(action: str, setting_name: str = None) -> 'Action':
      plug_name can be several plugs: plugone+plugtwo
      light_name can be several lights: lightone+lighttwo
      light brightness/white/transition are optional
+     light secondary_state/brightness/white/transition are even more optional. They can be activated by releasing a long press on a switch.
      shutter operation can be open/close/stop/half/auto (see shutters.py). 'auto' only works with shutters_auto.
      omitting rabbit_name is possible when action is launched from rabbit-related events such as rfid
     '''
@@ -209,6 +210,11 @@ class LightAction(Action):
         self.brightness = None
         self.white = None
         self.transition = None
+        self.secondary_enabled = False
+        self.secondary_state = None
+        self.secondary_brightness = None
+        self.secondary_white = None
+        self.secondary_transition = None
         if self.state not in ['on', 'off']:
             raise ValueError('LightAction: Missing or invalid state for "{}", got "{}"'.format(name, self.state))
         for option in state_data[1:]:
@@ -220,12 +226,41 @@ class LightAction(Action):
                 self.white = int(val)
             elif name == 'transition':
                 self.transition = int(val)
+            elif name == 'secondary_state':
+                val = val.lower()
+                if val not in ['on', 'off']:
+                    raise ValueError('LightAction: Invalid secondary state for "{}", got "{}"'.format(name, val))
+                self.secondary_state = val
+            elif name == 'secondary_brightness':
+                self.secondary_enabled = True
+                self.secondary_brightness = int(val)
+            elif name == 'secondary_white':
+                self.secondary_enabled = True
+                self.secondary_white = int(val)
+            elif name == 'secondary_transition':
+                self.secondary_enabled = True
+                self.secondary_transition = int(val)
             else:
                 raise ValueError('LightAction: Got unknown option "{}"'.format(option))
+        if self.secondary_enabled:
+            if not self.secondary_state:
+                self.secondary_state = self.state
+            if not self.secondary_brightness:
+                self.secondary_brightness = self.brightness
+            if not self.secondary_white:
+                self.secondary_white = self.white
+            if not self.secondary_transition:
+                self.secondary_transition = self.transition
     def run(self, event_type = None, rabbit = None, secondary_action: bool = False):
-        if not secondary_action:
+        if not secondary_action or self.secondary_enabled:
             for light in self.lights:
-                lights.switch(light, on=(self.state == 'on'), brightness=self.brightness, white=self.white, transition=self.transition)
+                lights.switch(
+                    light,
+                    on=((self.secondary_state if secondary_action else self.state) == 'on'),
+                    brightness=(self.secondary_brightness if secondary_action else self.brightness),
+                    white=(self.secondary_white if secondary_action else self.white),
+                    transition=(self.secondary_transition if secondary_action else self.transition)
+                )
     def __repr__(self):
         return 'LightAction(Light: {}, State: {}, Brightness: {}, White: {}, Transition: {})'.format(
           ', '.join(self.lights), self.state, self.brightness, self.white, self.transition)
