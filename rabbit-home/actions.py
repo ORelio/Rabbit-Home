@@ -37,7 +37,7 @@ def str2action(action: str, setting_name: str = None) -> 'Action':
     Supported actions:
      scenario:scenario_name[:{"arg1":"value", "arg2:"value"}]
      shutter:shutter_name:operation[/operation_on_release_long_press]
-     plug:plug_name:on|off[/on|off <- operation_on_release_long_press]
+     plug:plug_name:on|off[/on|off <- operation_on_release_long_press][:sends=XX <- send command amount, default is 3]
      light:light_name:on|off[/brightness=XX][/white=XX][/transition=XXX][/secondary_state=on|off][/secondary_brightness=XX][/secondary_white=XX][/secondary_transition=XX]
      webhook:url <- example: http://example.com/?mywebhook
      alarm:on|off|0|1|2|3|4|5|6|7|8|9
@@ -175,27 +175,43 @@ class PlugAction(Action):
     '''
     def __init__(self, name: str, data: str = None):
         self.plugs = name.split('+')
+        self.sends = None
         if data is None:
             raise ValueError('PlugAction: Missing state for "{}"'.format(name))
-        states = data.split('/')
+        states_and_options = data.split(':')
+        states = states_and_options[0].split('/')
         if len(states) > 2:
             raise ValueError('PlugAction: Invalid state format for "{}", got "{}", expecting {}'.format(
-                name, data, 'op or op/op_long'))
+                name, states_and_options[0], 'op or op/op_long'))
         for state in states:
             if state is None or state.lower() not in ['on', 'off']:
                 raise ValueError('PlugAction: Missing or invalid state for "{}", got "{}"'.format(name, state))
         self.state = states[0].lower() == 'on'
         self.state_long = states[1].lower() == 'on' if len(states) > 1 else None
+        if len(states_and_options) > 1:
+            if len(states_and_options) > 2:
+                raise ValueError('PlugAction: Invalid data format for "{}", got "{}", expecting {}'.format(
+                name, data, 'state or state:options'))
+            for option in states_and_options[1].split('/'):
+                name = option.split('=')[0].lower()
+                val = option[len(name) + 1:]
+                if name == 'sends':
+                    self.sends = int(val)
+                else:
+                    raise ValueError('PlugAction: Got unknown option "{}"'.format(option))
     def run(self, event_type = None, rabbit = None, secondary_action: bool = False):
+        desired_state = self.state
         if secondary_action:
-            if self.state_long is not None:
-                for plug in self.plugs:
-                    plugs433.switch(plug, self.state_long)
-        else:
-            for plug in self.plugs:
-                plugs433.switch(plug, self.state)
+            if self.state_long is None:
+                return
+            desired_state = self.state_long
+        for plug in self.plugs:
+            if self.sends:
+                plugs433.switch(plug, desired_state, sends = self.sends)
+            else:
+                plugs433.switch(plug, desired_state)
     def __repr__(self):
-        return 'PlugAction(Plug: {}, State: {}, StateReleaseLong: {})'.format(', '.join(self.plugs), self.state, self.state_long)
+        return 'PlugAction(Plug: {}, State: {}, StateReleaseLong: {}, Sends: {})'.format(', '.join(self.plugs), self.state, self.state_long, self.sends)
 
 class LightAction(Action):
     '''
