@@ -377,12 +377,15 @@ def _monitor_thread(camera: str, thread_token: int):
                     next_screenshot_time = time.time() + (frequency * 60)
         elif not camera_lost:
             camera_lost = True
-            notifications.publish(
-                message='La caméra ne répond plus : {}'.format(camera),
-                tags='x,video_camera',
-                topic=_camera_screenshot_channel[camera],
-                priority=notifications.Priority.HIGH
-            )
+            if _camera_socket_off_time[camera] + 60 > time.time():
+                logs.info('Camera just switched off, ignoring "camera not responding" error: {}'.format(camera))
+            else:
+                notifications.publish(
+                    message='La caméra ne répond plus : {}'.format(camera),
+                    tags='x,video_camera',
+                    topic=_camera_screenshot_channel[camera],
+                    priority=notifications.Priority.HIGH
+                )
 
         time.sleep(60) # 1 minute
 
