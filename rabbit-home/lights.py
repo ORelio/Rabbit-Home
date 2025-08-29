@@ -15,6 +15,7 @@ import time
 from logs import logs
 
 import notifications
+import plugs433
 import rabbits
 
 _lights = {}
@@ -153,22 +154,26 @@ def _switch(thread_token: int, light: str, on: bool = False, brightness: int = N
         try:
             if _command_tokens.get(light, 0) == thread_token:
 
-                # Temporarily update the light transition setting if needed
-                original_transition = transition
-                original_settings = _api_request(light, API_SETTINGS)
-                if 'transition' in original_settings:
-                    original_transition = original_settings['transition']
-                if original_transition != transition:
-                    _api_request(light, API_SETTINGS, {'transition': str(transition)})
+                if _lights[light].startswith('plug:'):
+                    # Light is connected through its power socket, only on/off state is supported
+                    plugs433.switch(_lights[light].split(':')[1].lower(), state=on)
+                else:
+                    # Temporarily update the light transition setting if needed
+                    original_transition = transition
+                    original_settings = _api_request(light, API_SETTINGS)
+                    if 'transition' in original_settings:
+                        original_transition = original_settings['transition']
+                    if original_transition != transition:
+                        _api_request(light, API_SETTINGS, {'transition': str(transition)})
 
-                # Switch light to desired brightness and color
-                if _command_tokens.get(light, 0) == thread_token:
-                    _api_request(light, API_SWITCH.replace('{CHANNEL}', str(_channels[light])), arguments)
+                    # Switch light to desired brightness and color
+                    if _command_tokens.get(light, 0) == thread_token:
+                        _api_request(light, API_SWITCH.replace('{CHANNEL}', str(_channels[light])), arguments)
 
-                # Wait for transition to finish playing before restoring it
-                if original_transition != transition:
-                    _sleep(thread_token, light, transition)
-                    _api_request(light, API_SETTINGS, {'transition': str(original_transition)})
+                    # Wait for transition to finish playing before restoring it
+                    if original_transition != transition:
+                        _sleep(thread_token, light, transition)
+                        _api_request(light, API_SETTINGS, {'transition': str(original_transition)})
 
         except requests.exceptions.ConnectionError:
             logs.warning('Failed to connect to light "{}"'.format(light))
