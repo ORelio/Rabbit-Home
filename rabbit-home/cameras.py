@@ -442,5 +442,7 @@ def stop_monitoring(camera: str = None, synchronous: bool = False):
     if synchronous:
         _stop_monitoring_thread(camera=camera)
     else:
-        t = Thread(target=_stop_monitoring_thread, args=[camera], name='Stop camera monitoring (camera={})'.format(camera))
-        t.start()
+        cameras = _param_to_camera_list(camera)
+        for camera in cameras:
+            t = Thread(target=_stop_monitoring_thread, args=[camera], name='Stop camera monitoring (camera={})'.format(camera))
+            t.start()
