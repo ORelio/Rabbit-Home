@@ -70,7 +70,7 @@ def _api_send(address: int, command: int, retries: int=2):
         response = requests.get(url, timeout=10)
         respdata = json.loads(response.content)
         return respdata['success'] == True
-    except:
+    except (requests.exceptions.ConnectionError, json.decoder.JSONDecodeError) as err:
         if retries <= 0:
             raise
         _api_send(address, command, retries - 1)

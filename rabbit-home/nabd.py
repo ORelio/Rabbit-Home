@@ -120,7 +120,13 @@ def _ssh_connect_and_read(rabbit: str):
             # Failed to run SSH
             logs.error('Error connecting to rabbit {}:'.format(rabbit))
             logs.error(os_error)
-            pass
+            nabd_process.kill()
+
+        except json.decoder.JSONDecodeError as json_error:
+            # Invalid JSON message from rabbit
+            logs.error('Invalid message from rabbit {}:'.format(rabbit))
+            logs.error(json_error)
+            nabd_process.kill()
 
         # Connection lost
         with _subprocess_lock:

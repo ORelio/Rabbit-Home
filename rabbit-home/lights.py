@@ -97,7 +97,7 @@ def _api_request(light: str, api_endpoint: str, parameters: dict = None, retries
         ip = _lights[light]
         url = f"http://{ip}/{api_endpoint}"
         return json.loads(requests.get(url, params=parameters).text)
-    except requests.exceptions.ConnectionError:
+    except (requests.exceptions.ConnectionError, json.decoder.JSONDecodeError) as err:
         if retries <= 0:
             logs.debug(f"in _api_request({light}, {api_endpoint}, {str(parameters)}, {retries}):")
             raise
