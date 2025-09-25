@@ -100,10 +100,12 @@ def switch(device: str, state: bool, sends: int = 3, delay_seconds: int = 1):
             _device_state[device] = state
         for i in range(sends):
             with _command_lock:
-                subprocess.run([
-                    _DEVICE_COMMAND,
-                    str(_calculate_code(channel, unit, state))
-                ], stdout=subprocess.DEVNULL)
+                command_code = str(_calculate_code(channel, unit, state))
+                try:
+                    subprocess.run([_DEVICE_COMMAND, command_code], stdout=subprocess.DEVNULL)
+                except OSError as os_error:
+                    logs.error('Error running command: {}'.format(_DEVICE_COMMAND, command_code))
+                    logs.error(os_error)
                 time.sleep(_SEND_COMMAND_DELAY) # Minimum delay between 2 commands
             if sends > 1:
                 time.sleep(delay_seconds)
