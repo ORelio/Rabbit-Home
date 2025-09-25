@@ -28,6 +28,7 @@ _command_locks = {}
 _command_tokens = {}
 
 _rabbit_to_lights = {}
+_lights_to_rabbit = {}
 
 config = ConfigParser()
 config.read('config/lights.ini')
@@ -64,6 +65,7 @@ for light_name_raw in config.sections():
         if not rabbit in _rabbit_to_lights:
             _rabbit_to_lights[rabbit] = []
         _rabbit_to_lights[rabbit].append(light_name)
+        _lights_to_rabbit[light_name] = rabbit
     _lights[light_name] = light_ip
     _channels[light_name] = light_channel
     _default_brightness[light_name] = light_brightness
@@ -177,7 +179,7 @@ def _switch(thread_token: int, light: str, on: bool = False, brightness: int = N
 
         except requests.exceptions.ConnectionError:
             logs.warning('Failed to connect to light "{}"'.format(light))
-            notifications.publish("L'éclairage '{}' n'a pas répondu".format(light), title='Eclairage injoignable', tags='electric_plug,bulb')
+            notifications.publish("L'éclairage '{}' n'a pas répondu".format(light), title='Eclairage injoignable', tags='electric_plug,bulb', rabbit=_lights_to_rabbit.get(light, None))
 
     if delay_off is not None:
         _switch(thread_token, light, on=False, transition=transition, delay=delay_off)
