@@ -220,9 +220,10 @@ def _opening_event_callback(opening_name: str, state: OpenState, shutter_name: s
             priority=notifications.Priority.LOWEST,
             count=10
         )
+        enable_time_before_waiting = _enable_time # If enable time change, this means the alarm was reset
         # TODO play warning sound(s)
         time.sleep(_FRONT_DOOR_GRACE_TIME_SECONDS)
-        if is_enabled():
+        if is_enabled() and _enable_time == enable_time_before_waiting: # still enabled and not reset
             logs.warning('Alarm not disabled during grace delay, triggering now')
             _trigger_alarm()
     else:
