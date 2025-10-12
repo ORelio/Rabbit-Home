@@ -45,6 +45,25 @@ var Tools = {
     UpFirst: function(str) {
         return String(str).charAt(0).toUpperCase() + String(str).slice(1);
     },
+
+    /**
+     * Switch UI tab
+     */
+    SwitchTab: function(btn) {
+        var tab_id = btn.getAttribute('data-tab-id');
+        var all_tabs = document.getElementsByClassName("tab");
+        var all_buttons = document.getElementsByClassName("tab_button");
+        for (var i = 0; i < all_tabs.length; i++) {
+            all_tabs[i].style.display = all_tabs[i].id === tab_id ? 'block' : 'none';
+        }
+        for (var i = 0; i < all_buttons.length; i++) {
+            if (all_buttons[i].getAttribute('data-tab-id') == tab_id) {
+                all_buttons[i].classList.add('selected');
+            } else {
+                all_buttons[i].classList.remove('selected');
+            }
+        }
+    },
 };
 
 var API = {

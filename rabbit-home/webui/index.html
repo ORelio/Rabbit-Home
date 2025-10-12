@@ -4,14 +4,17 @@
         <title>Rabbit Home Dashboard</title>
         <link rel="stylesheet" href="css/index.css" />
         <link rel="stylesheet" href="css/weather.css" />
+        <link rel="stylesheet" href="css/plugs.css" />
         <script src="js/index.js"></script>
         <script src="js/weather.js"></script>
+        <script src="js/plugs.js"></script>
     </head>
     <body>
         <div id="debug"></div>
-        <h1>Météo</h1>
+        <button onclick="Tools.SwitchTab(this)" class="tab_button selected" data-tab-id="weather">Météo</button>
+        <button onclick="Tools.SwitchTab(this)" class="tab_button" data-tab-id="plugs">Prises</button>
         <hr />
-        <div id="weather">
+        <div class="tab" id="weather">
             <table>
                 <tr>
                     <td class="today">
@@ -78,13 +81,21 @@
                 </tr>
             </table>
             <hr />
-            <table id="temperature_sensors_table">
+            <table id="temperature_sensors_table" class="items">
                 <tr id="temperature_sensors">
                     <!-- Filled in dynamically -->
                 </tr>
             </table>
             <script type="text/javascript">
                 Weather.Initialize();
+            </script>
+        </div>
+        <div class="tab" id="plugs" style="display: none">
+            <table id="all_plugs" class="items">
+                <!-- Filled in dynamically -->
+            </table>
+            <script type="text/javascript">
+                Plugs.Initialize();
             </script>
         </div>
     </body>

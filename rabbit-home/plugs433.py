@@ -7,7 +7,7 @@
 # ==============================================================================
 
 from flask import Blueprint, jsonify
-from threading import Lock
+from threading import Thread, Lock
 
 import subprocess
 import time
@@ -109,6 +109,9 @@ def switch(device: str, state: bool, sends: int = 3, delay_seconds: int = 1):
                 time.sleep(_SEND_COMMAND_DELAY) # Minimum delay between 2 commands
             if sends > 1:
                 time.sleep(delay_seconds)
+                with _state_lock:
+                    if _device_state[device] != state:
+                        break # Cancel additional sends if the desired state changed
     else:
         raise ValueError('Unknown device: ' + str(device))
 
@@ -131,13 +134,12 @@ logs.debug('Loaded {} plug aliases: {}'.format(len(_devices), ', '.join(list(_de
 
 plugs_api = Blueprint('plugs_api', __name__)
 
-@plugs_api.route('/api/v1/plugs/<device>', methods = ['GET'])
-def plugs433_api_get(device):
-    if not device or not device.lower() in _devices:
-        return jsonify({'success': False, 'message': 'Not Found'}), 404
-    device = device.lower()
-    with _state_lock:
-        return jsonify({'success': True, 'on': _device_state.get(device, None)})
+@plugs_api.route('/api/v1/plugs', methods = ['GET'])
+def plugs433_api_get():
+    devices = {}
+    for device in _devices:
+        devices[device] = _device_state.get(device, None)
+    return jsonify(devices)
 
 @plugs_api.route('/api/v1/plugs/<device>/<state>', methods = ['POST'])
 def plugs433_api_set(device, state):
@@ -147,5 +149,6 @@ def plugs433_api_set(device, state):
         return jsonify({'success': False, 'message': 'Invalid parameter'}), 400
     device = device.lower()
     state = (state.upper() == 'ON')
-    switch(device, state)
-    return plugs433_api_get(device)
+    Thread(target=switch, args=[device, state], name='Plugs433 API SetState').start()
+    logs.info('Web API: Switching device {}'.format(device))
+    return ({'success': True, 'state': _device_state.get(device, None)})

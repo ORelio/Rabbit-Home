@@ -28,7 +28,7 @@
 	src: local("Wingdings 3"), url("../font/wingdings-3.woff") format("woff");
 }
 
-body {
+body, button {
 	font-family: "Roboto";
 	font-size: 3.2vh;
 	line-height: 5.7vh;
@@ -71,4 +71,27 @@ th {
 	font-family: "Wingdings 3";
 	content: "Q"; /* ↺ */
 	padding-right: 1vw;
+}
+
+button {
+	margin-top: 0.5em;
+	height: 2em;
+	padding: 0 0.5em;
+	border: 2px solid black;
+	border-radius: 0.5em;
+	background-color: transparent;
+	cursor: pointer;
+}
+
+button.selected {
+	background-color: black;
+	color: white;
+}
+
+table.items {
+	width: 100%;
+}
+
+table.items div {
+	text-align: center;
 }

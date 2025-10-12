@@ -1,0 +1,9 @@
+#plugs td {
+	width: 25%;
+}
+
+#plugs img {
+	height: 1.5em;
+	margin: 0.5em auto 1em auto;
+	cursor: pointer;
+}
