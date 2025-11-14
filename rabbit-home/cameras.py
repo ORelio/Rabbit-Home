@@ -386,6 +386,16 @@ def _monitor_thread(camera: str, thread_token: int):
                     topic=_camera_screenshot_channel[camera],
                     priority=notifications.Priority.HIGH
                 )
+                # Attempt to reboot the camera
+                if _camera_power_socket[camera]:
+                    _switch_camera_socket(camera=camera, on=False)
+                    time.sleep(10)
+                    notifications.publish(
+                        message='Redémarrage : {}'.format(camera),
+                        tags='recycle,video_camera',
+                        topic=_camera_screenshot_channel[camera]
+                    )
+                    _switch_camera_socket(camera=camera, on=True)
 
         time.sleep(60) # 1 minute
 
