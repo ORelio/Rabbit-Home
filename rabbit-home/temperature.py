@@ -30,6 +30,7 @@ _name_to_device = dict()
 
 _rabbit_to_device = dict()
 _device_to_rabbit = dict()
+_device_to_rabbit_secondary = dict()
 
 _last_temperature_value = dict()
 _last_temperature_outside = None
@@ -83,6 +84,7 @@ for sensor in config.sections():
         device = config.get(sensor, 'device', fallback=None)
         devtype = config.get(sensor, 'type', fallback=None)
         devrabbit = config.get(sensor, 'rabbit', fallback=None)
+        devrabbit_secondary = config.get(sensor, 'rabbit_secondary', fallback=None)
         correction = config.getfloat(sensor, 'correction', fallback=0)
         if device is None:
             raise ValueError('[Temperature] Missing "device" field for "{}"'.format(sensor))
@@ -102,12 +104,15 @@ for sensor in config.sections():
         if devrabbit:
             devrabbit = rabbits.get_name(devrabbit)
             if devrabbit in _rabbit_to_device:
-                raise ValueError('[Temperature] Multiple sensors for rabbit "{}": "{}", "{}"'.format(
+                raise ValueError('[Temperature] Multiple sensors for rabbit "{}": "{}", "{}". Use rabbit_secondary for secondary sensors.'.format(
                     devrabbit, device, _device_to_rabbit[device]))
             _rabbit_to_device[devrabbit] = device
             _device_to_rabbit[device] = devrabbit
-        logs.debug('Loaded sensor {} (device={}, correction={}, type={}, rabbit={})'.format(
-            name, device, correction, devtype, devrabbit))
+        if devrabbit_secondary:
+            devrabbit_secondary = rabbits.get_name(devrabbit_secondary)
+            _device_to_rabbit_secondary[device] = devrabbit_secondary
+        logs.debug('Loaded sensor {} (device={}, correction={}, type={}, rabbit={}, rabbit_secondary={})'.format(
+            name, device, correction, devtype, devrabbit, devrabbit_secondary))
 
 logs.debug((
         'Thresholds: forecast_cold={}°C, outdoors_cold={}°C, indoors_cold={}°C, '
@@ -341,12 +346,20 @@ def sensor_health_monitoring_thread():
                     if not device in _last_temperature_time or _last_temperature_time[device] < (time.time() - 4200):
                         _lost_sensors[device] = True
                         logs.warning('No data from sensor: {} ({})'.format(name, device))
-                        notifications.publish("Pas de réception : {}".format(name), title='Capteur hors service', tags='x,thermometer', rabbit=_device_to_rabbit.get(device, None))
+                        notifications.publish(
+                            "Pas de réception : {}".format(name),
+                            title='Capteur hors service',
+                            tags='x,thermometer',
+                            rabbit=_device_to_rabbit.get(device, _device_to_rabbit_secondary.get(device, None)))
                 else:
                     if device in _last_temperature_time and _last_temperature_time[device] > (time.time() - 4200):
-                       del _lost_sensors[device]
-                       logs.info('Sensor is back: {} ({})'.format(name, device))
-                       notifications.publish("Capteur revenu : {}".format(name), title='Capteur opérationnel', tags='heavy_check_mark,thermometer', rabbit=_device_to_rabbit.get(device, None))
+                        del _lost_sensors[device]
+                        logs.info('Sensor is back: {} ({})'.format(name, device))
+                        notifications.publish(
+                            "Capteur revenu : {}".format(name),
+                            title='Capteur opérationnel',
+                            tags='heavy_check_mark,thermometer',
+                            rabbit=_device_to_rabbit.get(device, _device_to_rabbit_secondary.get(device, None)))
 
 if len(_device_to_name) > 0:
     _health_monitoring_thread = Thread(target=sensor_health_monitoring_thread, name='Temperature sensor health monitor')
