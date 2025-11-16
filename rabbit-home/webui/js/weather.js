@@ -114,6 +114,7 @@ var Weather = {
             "Brume ou bancs de brouillard": "fog",
             "Bancs de Brouillard": "fog",
             "Brouillard": "fog",
+            "Brouillard dense": "fog",
             "Brouillard givrant": "fog-snow",
             "Brume": "fog",
             "Pluies orageuses": "storm-rain",
