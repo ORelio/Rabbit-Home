@@ -8,8 +8,8 @@ var Weather = {
             if (result.today) {
                 document.getElementById('weather_today_image').src = Weather.Description2Image(result.today.description, result.is_day);
                 document.getElementById('weather_today_description').innerText = result.today.description;
-                document.getElementById('weather_today_minimum').innerText = result.today.minimum.toFixed(0);
-                document.getElementById('weather_today_maximum').innerText = result.today.maximum.toFixed(0);
+                document.getElementById('weather_today_minimum').innerText = Weather.RoundedTemperature(result.today.minimum);
+                document.getElementById('weather_today_maximum').innerText = Weather.RoundedTemperature(result.today.maximum);
             } else {
                 document.getElementById('weather_today_image').src = Weather.Description2Image('UNKNOWN', true);
                 document.getElementById('weather_today_description').innerText = 'Attente données';
@@ -20,8 +20,8 @@ var Weather = {
                 document.getElementById('weather_' + i.toString() + '_day').innerText = Weather.DayOfWeek(i);
                 if (result.forecast && i < result.forecast.length) {
                     document.getElementById('weather_' + i.toString() + '_image').src = Weather.Description2Image(result.forecast[i - 1].description, true);
-                    document.getElementById('weather_' + i.toString() + '_minimum').innerText = result.forecast[i - 1].minimum.toFixed(0);
-                    document.getElementById('weather_' + i.toString() + '_maximum').innerText = result.forecast[i - 1].maximum.toFixed(0);
+                    document.getElementById('weather_' + i.toString() + '_minimum').innerText = Weather.RoundedTemperature(result.forecast[i - 1].minimum);
+                    document.getElementById('weather_' + i.toString() + '_maximum').innerText = Weather.RoundedTemperature(result.forecast[i - 1].maximum);
                 } else {
                     document.getElementById('weather_' + i.toString() + '_image').src = Weather.Description2Image('UNKNOWN', true);
                     document.getElementById('weather_' + i.toString() + '_minimum').innerText = '--';
@@ -62,7 +62,7 @@ var Weather = {
                     document.getElementById('temperature_sensors').appendChild(td);
                 }
 
-                document.getElementById('temperature_' + sensor + '_value').innerText = result[sensor].temperature ? result[sensor].temperature.toFixed(1) : '--.-';
+                document.getElementById('temperature_' + sensor + '_value').innerText = result[sensor].temperature ? Weather.RoundedTemperature(result[sensor].temperature, 1) : '--.-';
                 document.getElementById('temperature_' + sensor + '_time').innerText = Tools.Timestamp2Time(result[sensor].time);
             }
         });
@@ -77,6 +77,11 @@ var Weather = {
         var weekday = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
         var d = new Date();
         return weekday[(d.getDay() + offset) % 7];
+    },
+
+    RoundedTemperature: function(temperature, digits) {
+        var rounded = temperature.toFixed(digits === undefined ? 0 : digits);
+        return rounded === "-0" ? "0" : rounded;
     },
 
     Description2Image: function(description, is_day) {
