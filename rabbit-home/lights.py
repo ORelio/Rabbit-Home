@@ -5,6 +5,7 @@
 # By ORelio (c) 2025 - CDDL 1.0
 # ========================================================
 
+from flask import Blueprint, jsonify
 from threading import Thread, Lock
 from configparser import ConfigParser
 
@@ -27,11 +28,16 @@ _default_transition = {}
 _command_locks = {}
 _command_tokens = {}
 
+_light_state = {}
+_state_lock = Lock()
+
 _rabbit_to_lights = {}
 _lights_to_rabbit = {}
 
 config = ConfigParser()
 config.read('config/lights.ini')
+
+PLUG_PREFIX='plug:'
 
 API_SWITCH='light/{CHANNEL}'
 API_SETTINGS='settings/'
@@ -156,7 +162,7 @@ def _switch(thread_token: int, light: str, on: bool = False, brightness: int = N
         try:
             if _command_tokens.get(light, 0) == thread_token:
 
-                if _lights[light].startswith('plug:'):
+                if _lights[light].startswith(PLUG_PREFIX):
                     # Light is connected through its power socket, only on/off state is supported
                     plugs433.switch(_lights[light].split(':')[1].lower(), state=on)
                 else:
@@ -171,6 +177,12 @@ def _switch(thread_token: int, light: str, on: bool = False, brightness: int = N
                     # Switch light to desired brightness and color
                     if _command_tokens.get(light, 0) == thread_token:
                         _api_request(light, API_SWITCH.replace('{CHANNEL}', str(_channels[light])), arguments)
+                        with _state_lock:
+                            _light_state[light] = {
+                                'on': on,
+                                'brightness': brightness,
+                                'white': white
+                            }
 
                     # Wait for transition to finish playing before restoring it
                     if original_transition != transition:
@@ -235,3 +247,24 @@ def switch_for_rabbit(rabbit: str, on: bool = False, brightness: int = None, whi
     lights = get_for_rabbit(rabbit)
     for light in lights:
         switch(light, on=on, brightness=brightness, white=white, transition=transition, delay=delay, delay_off=delay_off)
+
+# === HTTP API ===
+
+lights_api = Blueprint('lights_api', __name__)
+
+@lights_api.route('/api/v1/lights', methods = ['GET'])
+def lights_api_get():
+    lights = {}
+    for light in _lights:
+        state = None
+        with _state_lock:
+            state = _light_state.get(light, None)
+            if not state:
+                state = {
+                    'on': None,
+                    'brightness': None,
+                    'white': None
+                }
+        state['dimmable'] = not _lights[light].startswith(PLUG_PREFIX)
+        lights[light] = state
+    return jsonify(lights)

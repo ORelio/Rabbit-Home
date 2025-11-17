@@ -18,6 +18,7 @@ from plugs433 import plugs_api
 from soundplayer import soundplayer_api
 from temperature import temperature_api
 from weather import weather_api
+from lights import lights_api
 from webui import web_ui
 
 config = ConfigParser()
@@ -35,6 +36,7 @@ app.register_blueprint(plugs_api)
 app.register_blueprint(soundplayer_api)
 app.register_blueprint(temperature_api)
 app.register_blueprint(weather_api)
+app.register_blueprint(lights_api)
 app.register_blueprint(web_ui)
 
 soundplayer.set_base_url(url)
