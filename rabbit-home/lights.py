@@ -8,6 +8,7 @@
 from flask import Blueprint, jsonify
 from threading import Thread, Lock
 from configparser import ConfigParser
+from enum import Enum
 
 import json
 import requests
@@ -19,7 +20,13 @@ import notifications
 import plugs433
 import rabbits
 
-_lights = {}
+class LightType(Enum):
+    GROUP = 0
+    SHELLY = 1
+    PLUG = 2
+
+_light_to_device = {}
+_light_to_type = {}
 _channels = {}
 _default_brightness = {}
 _default_white = {}
@@ -37,15 +44,14 @@ _lights_to_rabbit = {}
 config = ConfigParser()
 config.read('config/lights.ini')
 
-PLUG_PREFIX='plug:'
-
 API_SWITCH='light/{CHANNEL}'
 API_SETTINGS='settings/'
 
 # Load configuration file
 for light_name_raw in config.sections():
     light_name = light_name_raw.lower()
-    light_ip = config.get(light_name_raw, 'IP')
+    light_type = LightType[config.get(light_name_raw, 'Type').upper()]
+    light_device = config.get(light_name_raw, 'Device').lower()
     light_channel = config.getint(light_name_raw, 'Channel', fallback=0)
     light_brightness = config.getint(light_name_raw, 'Brightness', fallback=100)
     if light_channel < 0:
@@ -65,29 +71,39 @@ for light_name_raw in config.sections():
     if light_transition > 5000:
         light_transition = 5000
     rabbit = rabbits.get_name(config.get(light_name_raw, 'Rabbit', fallback=None))
-    if light_name in _lights:
+    if light_name in _light_to_device:
         raise ValueError('Duplicate light name: {}'.format(light_name_raw))
     if rabbit:
         if not rabbit in _rabbit_to_lights:
             _rabbit_to_lights[rabbit] = []
         _rabbit_to_lights[rabbit].append(light_name)
         _lights_to_rabbit[light_name] = rabbit
-    _lights[light_name] = light_ip
+    if light_type == LightType.GROUP:
+        light_device = light_device.split('+')
+    _light_to_type[light_name] = light_type
+    _light_to_device[light_name] = light_device
     _channels[light_name] = light_channel
     _default_brightness[light_name] = light_brightness
     _default_white[light_name] = light_white
     _default_transition[light_name] = light_transition
     _command_locks[light_name] = Lock()
     _command_tokens[light_name] = 0;
-    logs.debug('Loaded light "{}" (IP={}, Brightness={}, White={}, TransitionMs={}, Rabbit={})'.format(
+    logs.debug('Loaded light "{}" (Type={}, Device={}, Brightness={}, White={}, TransitionMs={}, Rabbit={})'.format(
         light_name,
-        light_ip,
+        light_type,
+        light_device,
         light_brightness,
         light_white,
         light_transition,
         rabbit
     ))
-logs.debug('Loaded {} light definitions'.format(len(_lights)))
+# Make sure group members exist
+for light in _light_to_device:
+    if _light_to_type[light] == LightType.GROUP:
+        for member in _light_to_device[light]:
+            if not member in _light_to_device:
+                raise ValueError('Light group "{}": Unknown member "{}"'.format(light, member))
+logs.debug('Loaded {} light definitions'.format(len(_light_to_device)))
 
 def _api_request(light: str, api_endpoint: str, parameters: dict = None, retries: int = 2) -> dict:
     '''
@@ -99,10 +115,12 @@ def _api_request(light: str, api_endpoint: str, parameters: dict = None, retries
     returns API response
     '''
     light = light.lower()
-    if not light in _lights:
+    if not light in _light_to_device:
         raise ValueError('Unknown light: {}'.format(light))
+    if _light_to_type.get(light, None) != LightType.SHELLY:
+        raise ValueError('Light "{}" is not of type Shelly.'.format(light))
     try:
-        ip = _lights[light]
+        ip = _light_to_device[light]
         url = f"http://{ip}/{api_endpoint}"
         return json.loads(requests.get(url, params=parameters).text)
     except (requests.exceptions.ConnectionError, json.decoder.JSONDecodeError) as err:
@@ -127,8 +145,12 @@ def _switch(thread_token: int, light: str, on: bool = False, brightness: int = N
     thread_token: Allows cancelling a delayed on/off operations by updating the token.
     '''
     light = light.lower()
-    if not light in _lights:
+    if not light in _light_to_device:
         raise ValueError('Unknown light: {}'.format(light))
+    if not light in _light_to_type:
+        raise ValueError('Missing type for light: {}'.format(light))
+    if _light_to_type[light] == LightType.GROUP:
+        raise ValueError('LightType.GROUP unsupported in _switch(). Use switch().')
 
     if white is None:
         white = _default_white[light]
@@ -162,10 +184,10 @@ def _switch(thread_token: int, light: str, on: bool = False, brightness: int = N
         try:
             if _command_tokens.get(light, 0) == thread_token:
 
-                if _lights[light].startswith(PLUG_PREFIX):
+                if _light_to_type[light] == LightType.PLUG:
                     # Light is connected through its power socket, only on/off state is supported
-                    plugs433.switch(_lights[light].split(':')[1].lower(), state=on)
-                else:
+                    plugs433.switch(_light_to_device[light], state=on)
+                else: # LightType.SHELLY
                     # Temporarily update the light transition setting if needed
                     original_transition = transition
                     original_settings = _api_request(light, API_SETTINGS)
@@ -209,20 +231,55 @@ def switch(light: str, on: bool = False, brightness: int = None, white: int = No
     synchronous: Wait for light to finish switching before returning
     '''
     light = light.lower()
-    if not light in _lights:
+    if not light in _light_to_device:
         raise ValueError('Unknown light: {}'.format(light))
+    if not light in _light_to_type:
+        raise ValueError('Missing type for light: {}'.format(light))
+
+    if _light_to_type[light] == LightType.GROUP:
+        logs.info('Adjusting group {}: {}, on={}, brightness={}, white={}, transition={}'.format(
+            light, '+'.join(_light_to_device[light]), on, brightness, white, transition
+        ))
+        for member in _light_to_device[light]:
+            switch(
+                light=member,
+                on=on,
+                brightness=brightness,
+                white=white,
+                transition=transition,
+                delay=delay,
+                delay_off=delay_off,
+                synchronous=synchronous
+            )
+        return
 
     with _command_locks[light]:
         thread_token = round(time.time() * 1000)
         _command_tokens[light] = thread_token
 
     if synchronous:
-        _switch(thread_token, light, on=on, brightness=brightness, white=white, transition=transition, delay=delay, delay_off=delay_off)
+        _switch(
+            thread_token,
+            light=light,
+            on=on,
+            brightness=brightness,
+            white=white,
+            transition=transition,
+            delay=delay,
+            delay_off=delay_off
+        )
     else:
         _switch_thread = Thread(target=_switch,
             args=[thread_token, light],
-            kwargs={'on': on, 'brightness': brightness, 'white':white, 'transition': transition, 'delay': delay, 'delay_off': delay_off },
-            name='Switching Light')
+            kwargs={
+                'on': on,
+                'brightness': brightness,
+                'white': white,
+                'transition': transition,
+                'delay': delay,
+                'delay_off': delay_off},
+            name='Switching Light'
+        )
         _switch_thread.start()
 
 def get_for_rabbit(rabbit: str) -> list:
@@ -255,7 +312,7 @@ lights_api = Blueprint('lights_api', __name__)
 @lights_api.route('/api/v1/lights', methods = ['GET'])
 def lights_api_get():
     lights = {}
-    for light in _lights:
+    for light in _light_to_device:
         state = None
         with _state_lock:
             state = _light_state.get(light, None)
@@ -265,6 +322,6 @@ def lights_api_get():
                     'brightness': None,
                     'white': None
                 }
-        state['dimmable'] = not _lights[light].startswith(PLUG_PREFIX)
+        state['dimmable'] = not _light_to_type[light] == LightType.PLUG
         lights[light] = state
     return jsonify(lights)
