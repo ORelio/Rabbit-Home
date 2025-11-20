@@ -32,6 +32,7 @@ _light_to_brightness = {}
 _light_to_white = {}
 _light_to_transition = {}
 _light_is_hidden = {}
+_light_is_dimmable = {}
 
 _command_locks = {}
 _command_tokens = {}
@@ -53,11 +54,11 @@ for light_name_raw in config.sections():
     light_name = light_name_raw.lower()
     light_type = LightType[config.get(light_name_raw, 'Type').upper()]
     light_device = config.get(light_name_raw, 'Device').lower()
-    light_channel = config.getint(light_name_raw, 'Channel', fallback=0)
-    light_brightness = config.getint(light_name_raw, 'Brightness', fallback=100)
     light_hidden = config.getboolean(light_name_raw, 'Hidden', fallback=False)
+    light_channel = config.getint(light_name_raw, 'Channel', fallback=0)
     if light_channel < 0:
         raise ValueError('Negative channel invalid for light: {}'.format(light_name_raw))
+    light_brightness = config.getint(light_name_raw, 'Brightness', fallback=100)
     if light_brightness < 1:
         light_brightness = 1
     if light_brightness > 100:
@@ -72,6 +73,13 @@ for light_name_raw in config.sections():
         light_transition = 0
     if light_transition > 5000:
         light_transition = 5000
+    light_dimmable = config.getboolean(light_name_raw, 'Dimmable', fallback=None)
+    if light_dimmable is not None and light_type != LightType.SHELLY:
+        raise ValueError('{}: Dimmable attribute only valid for Type=Shelly'.format(light_name_raw))
+    if light_dimmable is None and light_type == LightType.SHELLY:
+        light_dimmable = True
+    if light_dimmable is None:
+        light_dimmable = False
     rabbit = rabbits.get_name(config.get(light_name_raw, 'Rabbit', fallback=None))
     if light_name in _light_to_device:
         raise ValueError('Duplicate light name: {}'.format(light_name_raw))
@@ -89,9 +97,11 @@ for light_name_raw in config.sections():
     _light_to_white[light_name] = light_white
     _light_to_transition[light_name] = light_transition
     _light_is_hidden[light_name] = light_hidden
+    if light_type != LightType.GROUP:
+        _light_is_dimmable[light_name] = light_dimmable
     _command_locks[light_name] = Lock()
     _command_tokens[light_name] = 0;
-    logs.debug('Loaded light "{}" (Type={}, Device={}, Brightness={}, White={}, TransitionMs={}, Hidden={}, Rabbit={})'.format(
+    logs.debug('Loaded light "{}" (Type={}, Device={}, Brightness={}, White={}, TransitionMs={}, Hidden={}, Dimmable={}, Rabbit={})'.format(
         light_name,
         light_type,
         light_device,
@@ -99,6 +109,7 @@ for light_name_raw in config.sections():
         light_white,
         light_transition,
         light_hidden,
+        light_dimmable,
         rabbit
     ))
 # Make sure group members exist
@@ -309,6 +320,22 @@ def switch_for_rabbit(rabbit: str, on: bool = False, brightness: int = None, whi
     for light in lights:
         switch(light, on=on, brightness=brightness, white=white, transition=transition, delay=delay, delay_off=delay_off)
 
+def is_dimmable(light: str):
+    '''
+    Check if the specified light is dimmable
+    '''
+    light = light.lower()
+    if not light in _light_to_device:
+        raise ValueError('Unknown light: {}'.format(light))
+    if _light_to_type[light] == LightType.GROUP:
+        if len(_light_to_device[light]) == 0:
+            return False
+        for member in _light_to_device[light]:
+            if not is_dimmable(member):
+                return False
+        return True
+    return _light_is_dimmable[light]
+
 # === HTTP API ===
 
 lights_api = Blueprint('lights_api', __name__)
@@ -327,6 +354,9 @@ def lights_api_get():
                         'brightness': None,
                         'white': None
                     }
-            state['dimmable'] = not _light_to_type[light] == LightType.PLUG
+            state['dimmable'] = is_dimmable(light)
+            if not state['dimmable']:
+                del state['brightness']
+                del state['white']
             lights[light] = state
     return jsonify(lights)
