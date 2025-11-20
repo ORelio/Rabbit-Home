@@ -202,6 +202,12 @@ def _switch(thread_token: int, light: str, on: bool = False, brightness: int = N
                 if _light_to_type[light] == LightType.PLUG:
                     # Light is connected through its power socket, only on/off state is supported
                     plugs433.switch(_light_to_device[light], state=on)
+                    with _state_lock:
+                        _light_state[light] = {
+                            'on': on,
+                            'brightness': None,
+                            'white': None
+                        }
                 else: # LightType.SHELLY
                     # Temporarily update the light transition setting if needed
                     original_transition = transition
@@ -217,7 +223,7 @@ def _switch(thread_token: int, light: str, on: bool = False, brightness: int = N
                         with _state_lock:
                             _light_state[light] = {
                                 'on': on,
-                                'brightness': brightness,
+                                'brightness': 0 if not on else brightness,
                                 'white': white
                             }
 
@@ -322,7 +328,7 @@ def switch_for_rabbit(rabbit: str, on: bool = False, brightness: int = None, whi
 
 def is_dimmable(light: str):
     '''
-    Check if the specified light is dimmable
+    Check if the specified light or group is dimmable
     '''
     light = light.lower()
     if not light in _light_to_device:
@@ -336,6 +342,43 @@ def is_dimmable(light: str):
         return True
     return _light_is_dimmable[light]
 
+def get_state(light: str):
+    '''
+    Retrieve state for the specified light or group
+    '''
+    light = light.lower()
+    if not light in _light_to_device:
+        raise ValueError('Unknown light: {}'.format(light))
+    if _light_to_type[light] == LightType.GROUP:
+        # Determine ON state. If mixed state, ON (True) wins
+        on = set([get_state(member)['on'] for member in _light_to_device[light]])
+        if None in on:
+            on.remove(None)
+        if len(on) == 0:
+            on = None
+        else:
+            on = True in on
+        # Determine brightness. If mixed state, discard value (None)
+        brightness = set([get_state(member)['brightness'] for member in _light_to_device[light]])
+        brightness = None if len(brightness) != 1 else brightness.pop()
+        # Determine white. If mixed state, discard value (None)
+        white = set([get_state(member)['white'] for member in _light_to_device[light]])
+        white = None if len(white) != 1 else white.pop()
+        return {
+            'on': on,
+            'brightness': brightness,
+            'white': white
+        }
+    with _state_lock:
+        state = _light_state.get(light, None)
+        if not state:
+            state = {
+                'on': None,
+                'brightness': None,
+                'white': None
+            }
+        return state
+
 # === HTTP API ===
 
 lights_api = Blueprint('lights_api', __name__)
@@ -345,15 +388,7 @@ def lights_api_get():
     lights = {}
     for light in _light_to_device:
         if not _light_is_hidden.get(light, False):
-            state = None
-            with _state_lock:
-                state = _light_state.get(light, None)
-                if not state:
-                    state = {
-                        'on': None,
-                        'brightness': None,
-                        'white': None
-                    }
+            state = dict(get_state(light))
             state['dimmable'] = is_dimmable(light)
             if not state['dimmable']:
                 del state['brightness']
