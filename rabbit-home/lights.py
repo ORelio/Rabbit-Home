@@ -27,10 +27,11 @@ class LightType(Enum):
 
 _light_to_device = {}
 _light_to_type = {}
-_channels = {}
-_default_brightness = {}
-_default_white = {}
-_default_transition = {}
+_light_to_channel = {}
+_light_to_brightness = {}
+_light_to_white = {}
+_light_to_transition = {}
+_light_is_hidden = {}
 
 _command_locks = {}
 _command_tokens = {}
@@ -54,6 +55,7 @@ for light_name_raw in config.sections():
     light_device = config.get(light_name_raw, 'Device').lower()
     light_channel = config.getint(light_name_raw, 'Channel', fallback=0)
     light_brightness = config.getint(light_name_raw, 'Brightness', fallback=100)
+    light_hidden = config.getboolean(light_name_raw, 'Hidden', fallback=False)
     if light_channel < 0:
         raise ValueError('Negative channel invalid for light: {}'.format(light_name_raw))
     if light_brightness < 1:
@@ -82,19 +84,21 @@ for light_name_raw in config.sections():
         light_device = light_device.split('+')
     _light_to_type[light_name] = light_type
     _light_to_device[light_name] = light_device
-    _channels[light_name] = light_channel
-    _default_brightness[light_name] = light_brightness
-    _default_white[light_name] = light_white
-    _default_transition[light_name] = light_transition
+    _light_to_channel[light_name] = light_channel
+    _light_to_brightness[light_name] = light_brightness
+    _light_to_white[light_name] = light_white
+    _light_to_transition[light_name] = light_transition
+    _light_is_hidden[light_name] = light_hidden
     _command_locks[light_name] = Lock()
     _command_tokens[light_name] = 0;
-    logs.debug('Loaded light "{}" (Type={}, Device={}, Brightness={}, White={}, TransitionMs={}, Rabbit={})'.format(
+    logs.debug('Loaded light "{}" (Type={}, Device={}, Brightness={}, White={}, TransitionMs={}, Hidden={}, Rabbit={})'.format(
         light_name,
         light_type,
         light_device,
         light_brightness,
         light_white,
         light_transition,
+        light_hidden,
         rabbit
     ))
 # Make sure group members exist
@@ -153,9 +157,9 @@ def _switch(thread_token: int, light: str, on: bool = False, brightness: int = N
         raise ValueError('LightType.GROUP unsupported in _switch(). Use switch().')
 
     if white is None:
-        white = _default_white[light]
+        white = _light_to_white[light]
     if transition is None:
-        transition = _default_transition[light]
+        transition = _light_to_transition[light]
 
     if brightness is not None:
         on = True
@@ -164,7 +168,7 @@ def _switch(thread_token: int, light: str, on: bool = False, brightness: int = N
             brightness = None
             white = None
     elif on is not None:
-        brightness = _default_brightness[light] if on else None
+        brightness = _light_to_brightness[light] if on else None
     else:
         raise ValueError('Missing desired state: "on" or "brightness"')
 
@@ -198,7 +202,7 @@ def _switch(thread_token: int, light: str, on: bool = False, brightness: int = N
 
                     # Switch light to desired brightness and color
                     if _command_tokens.get(light, 0) == thread_token:
-                        _api_request(light, API_SWITCH.replace('{CHANNEL}', str(_channels[light])), arguments)
+                        _api_request(light, API_SWITCH.replace('{CHANNEL}', str(_light_to_channel[light])), arguments)
                         with _state_lock:
                             _light_state[light] = {
                                 'on': on,
@@ -313,15 +317,16 @@ lights_api = Blueprint('lights_api', __name__)
 def lights_api_get():
     lights = {}
     for light in _light_to_device:
-        state = None
-        with _state_lock:
-            state = _light_state.get(light, None)
-            if not state:
-                state = {
-                    'on': None,
-                    'brightness': None,
-                    'white': None
-                }
-        state['dimmable'] = not _light_to_type[light] == LightType.PLUG
-        lights[light] = state
+        if not _light_is_hidden.get(light, False):
+            state = None
+            with _state_lock:
+                state = _light_state.get(light, None)
+                if not state:
+                    state = {
+                        'on': None,
+                        'brightness': None,
+                        'white': None
+                    }
+            state['dimmable'] = not _light_to_type[light] == LightType.PLUG
+            lights[light] = state
     return jsonify(lights)
