@@ -144,9 +144,9 @@ var API = {
                             Tools.LogError(endpoint + ' returned ' + xhr.status + ', then failure_callback() failed: ' + exception + '\n\n' + xhr.responseText);
                         }
                     } else {
-                        if (Object.hasOwn(response, 'message')) {
+                        if (response.hasOwnProperty('message')) {
                             alert("Erreur : " + response.message);
-                        } else if (Object.hasOwn(response, 'error')) {
+                        } else if (response.hasOwnProperty('error')) {
                             alert("Erreur : " + response.error);
                         } else {
                             Tools.LogError(endpoint + ' returned code ' + xhr.status + ':\n' + xhr.responseText);
