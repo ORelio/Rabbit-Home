@@ -303,6 +303,12 @@ def switch(light: str, on: bool = False, brightness: int = None, white: int = No
         )
         _switch_thread.start()
 
+def get_all() -> list:
+    '''
+    Get all lights
+    '''
+    return list(_light_to_device.keys())
+
 def get_for_rabbit(rabbit: str) -> list:
     '''
     Get all lights associated with a rabbit
@@ -395,3 +401,14 @@ def lights_api_get():
                 del state['white']
             lights[light] = state
     return jsonify(lights)
+
+@lights_api.route('/api/v1/lights/<light>/<state>', methods = ['POST'])
+def plugs433_api_set(light, state):
+    if not light or not light.lower() in _light_to_device:
+        return jsonify({'success': False, 'message': 'Not Found'}), 404
+    if not state or not state.upper() in ['ON', 'OFF']:
+        return jsonify({'success': False, 'message': 'Invalid parameter'}), 400
+    light = light.lower()
+    on = (state.upper() == 'ON')
+    switch(light=light, on=on, synchronous=True)
+    return jsonify({'success': True})
