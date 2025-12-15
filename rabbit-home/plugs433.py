@@ -76,44 +76,72 @@ def _calculate_code(channel: str, unit: str, on: bool) -> int:
     binary_code = binary_code + ('1' if on else '0')
     return int(binary_code, 2)
 
-def switch(device: str, state: bool, sends: int = 3, delay_seconds: int = 1):
+def _switch(device: str, state: bool, sends: int = 3, delay_seconds: int = 1):
+    '''
+    Switch a 433MHz plug (internal)
+    device: Name of plug to operate
+    state: Desired ON/OFF state, True means ON, False means OFF
+    sends: amount of sends, minimum is 1, default is to send 3 times
+    delay: delay in seconds between sends, default is to wait 1 second between sends
+    '''
+    if not device.lower() in _devices:
+        raise ValueError('Unknown device: ' + str(device))
+    if sends < 1:
+        sends = 1
+    if delay_seconds < 0:
+        delay_seconds = 0
+    device = device.lower()
+    device_data = _devices[device].split(':')
+    channel = device_data[0]
+    unit = device_data[1]
+    state_str = 'ON' if state else 'OFF'
+    logs.info('Setting state {} for device {} ({} send{})'.format(
+        state_str, device, sends, 's' if sends > 1 else ''))
+    with _state_lock:
+        _device_state[device] = state
+    for i in range(sends):
+        with _command_lock:
+            command_code = str(_calculate_code(channel, unit, state))
+            try:
+                subprocess.run([_DEVICE_COMMAND, command_code], stdout=subprocess.DEVNULL)
+            except OSError as os_error:
+                logs.error('Error running command: {}'.format(_DEVICE_COMMAND, command_code))
+                logs.error(os_error)
+            time.sleep(_SEND_COMMAND_DELAY) # Minimum delay between 2 commands
+        if sends > 1:
+            time.sleep(delay_seconds)
+            with _state_lock:
+                if _device_state[device] != state:
+                    break # Cancel additional sends if the desired state changed
+
+def switch(device: str, state: bool, sends: int = 3, delay_seconds: int = 1, synchronous: bool = False):
     '''
     Switch a 433MHz plug
     device: Name of plug to operate
     state: Desired ON/OFF state, True means ON, False means OFF
     sends: amount of sends, minimum is 1, default is to send 3 times
     delay: delay in seconds between sends, default is to wait 1 second between sends
+    synchronous: Wait for plug to finish switching before returning
     '''
-    device = device.lower()
-    if sends < 1:
-        sends = 1
-    if delay_seconds < 0:
-        delay_seconds = 0
-    if device in _devices:
-        device_data = _devices[device].split(':')
-        channel = device_data[0]
-        unit = device_data[1]
-        state_str = 'ON' if state else 'OFF'
-        logs.info('Setting state {} for device {} ({} send{})'.format(
-            state_str, device, sends, 's' if sends > 1 else ''))
-        with _state_lock:
-            _device_state[device] = state
-        for i in range(sends):
-            with _command_lock:
-                command_code = str(_calculate_code(channel, unit, state))
-                try:
-                    subprocess.run([_DEVICE_COMMAND, command_code], stdout=subprocess.DEVNULL)
-                except OSError as os_error:
-                    logs.error('Error running command: {}'.format(_DEVICE_COMMAND, command_code))
-                    logs.error(os_error)
-                time.sleep(_SEND_COMMAND_DELAY) # Minimum delay between 2 commands
-            if sends > 1:
-                time.sleep(delay_seconds)
-                with _state_lock:
-                    if _device_state[device] != state:
-                        break # Cancel additional sends if the desired state changed
-    else:
+    if not device.lower() in _devices:
         raise ValueError('Unknown device: ' + str(device))
+    if synchronous:
+        _switch(
+            device=device,
+            state=state,
+            sends=sends,
+            delay_seconds=delay_seconds
+        )
+    else:
+        _switch_thread = Thread(target=_switch,
+            kwargs={
+                'device': device,
+                'state': state,
+                'sends': sends,
+                'delay_seconds': delay_seconds},
+            name='Switching Plug'
+        )
+        _switch_thread.start()
 
 for name in config.options('Plugs'):
     device_code = config.get('Plugs', name)
@@ -151,4 +179,4 @@ def plugs433_api_set(device, state):
     state = (state.upper() == 'ON')
     Thread(target=switch, args=[device, state], name='Plugs433 API SetState').start()
     logs.info('Web API: Switching device {}'.format(device))
-    return ({'success': True, 'state': _device_state.get(device, None)})
+    return jsonify({'success': True, 'state': _device_state.get(device, None)})

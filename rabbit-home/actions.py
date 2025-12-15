@@ -207,9 +207,9 @@ class PlugAction(Action):
             desired_state = self.state_long
         for plug in self.plugs:
             if self.sends:
-                plugs433.switch(plug, desired_state, sends = self.sends)
+                plugs433.switch(plug, desired_state, sends = self.sends, synchronous=True)
             else:
-                plugs433.switch(plug, desired_state)
+                plugs433.switch(plug, desired_state, synchronous=True)
     def __repr__(self):
         return 'PlugAction(Plug: {}, State: {}, StateReleaseLong: {}, Sends: {})'.format(', '.join(self.plugs), self.state, self.state_long, self.sends)
 

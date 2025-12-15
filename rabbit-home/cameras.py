@@ -127,7 +127,7 @@ def _switch_camera_socket(on: bool, camera: str = None):
         socket = _camera_power_socket[camera]
         if not socket:
             raise ValueError('No socket configured for camera "{}" so cannot switch ON/OFF'.format(camera))
-        plugs433.switch(socket, on)
+        plugs433.switch(socket, on, synchronous=True)
 
 def is_reachable(camera: str, timeout_seconds: int = 10) -> bool:
     '''
