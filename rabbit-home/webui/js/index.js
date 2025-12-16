@@ -64,6 +64,77 @@ var Tools = {
             }
         }
     },
+
+    /**
+     * Make an API GET request and dynamically populate results into a destination HTML table
+     * @param {function} api_function API function, e.g. API.GET (see API object).
+     * @param {string} api_endpoint API endpoint, e.g. "/api/v1/endpoint". Endpoint shall return JSON {"result1": {..data..}, "result2": {..data..}, ...}.
+     * @param {string} table_id Destination table ID, e.g. "my_table"
+     * @param {string} cell_id_prefix Prefix, e.g. "mydata_" for table cells. Cells will have IDs like mydata_result1, mydata_result2, etc.
+     * @param {function(string, object, Node, boolean): void} cell_callback Callback taking result name, result data, <td> node, initial_build (True: build node. False: refresh data)
+     * @param {int} elements_per_row Optionally override the default amount of elements per row, which is 4.
+     */
+     ApiToTable: function(api_function, api_endpoint, table_id, cell_id_prefix, cell_callback, elements_per_row) {
+         if (elements_per_row === undefined) {
+             elements_per_row = 4;
+         }
+         api_function(api_endpoint, function(api_data) {
+            var all_result_names = Object.keys(api_data);
+            var current_table_row = null;
+            for (var i=0; i < all_result_names.length; i++) {
+                var result_name = all_result_names[i];
+                var result_cell = document.getElementById(cell_id_prefix + result_name);
+                var initial_build = (result_cell === null);
+                if (initial_build) {
+                    if (i%elements_per_row == 0) {
+                        current_table_row = document.createElement('tr');
+                        document.getElementById(table_id).appendChild(current_table_row);
+                    }
+
+                    result_cell = document.createElement('td');
+                    result_cell.id = cell_id_prefix + result_name;
+                    result_cell.setAttribute('data-name', result_name);
+                    result_cell.style.width = (100 / elements_per_row).toString() + '%';
+
+                    var cell_name = document.createElement('div');
+                    cell_name.innerText = Tools.UpFirst(result_name);
+                    cell_name.className = 'name';
+                    result_cell.appendChild(cell_name);
+
+                    current_table_row.appendChild(result_cell);
+                }
+                cell_callback(result_name, api_data[result_name], result_cell, initial_build);
+            }
+        });
+     },
+
+    /**
+     * Make a callback which receives the name of clicked cell instead of the click event
+     * Cell name comes from the data-name attribute set by theApiToTable() function.
+     */
+    NamedClickCallback: function(callback) {
+        return function(click) {
+            var click_target = click.target;
+            if (click_target.getAttribute('data-name') == null) {
+                click_target = click_target.parentElement;
+                if (click_target.getAttribute('data-name') == null) {
+                    click_target = click_target.parentElement;
+                }
+            }
+            callback(click_target.getAttribute('data-name'));
+        }
+    },
+
+    /**
+     * Automatically call the provided refresh function every 5 minutes or the specified time interval
+     */
+    ScheduleAutoRefresh: function(callback, refresh_time) {
+        if (refresh_time === undefined) {
+            refresh_time = 300000; // 5 minutes
+        }
+        setTimeout(callback, 100);
+        setTimeout(function() { Tools.ScheduleAutoRefresh(callback, refresh_time); }, refresh_time);
+    },
 };
 
 var API = {
@@ -91,8 +162,8 @@ var API = {
 
     /**
      * Perform JSON API Request using XMLHttpRequest
-     * @param {string} API request method, e.g. GET or POST
-     * @param {string} API endpoint, e.g. /api/submit-data
+     * @param {string} method API request method, e.g. GET or POST
+     * @param {string} endpoint API endpoint, e.g. /api/submit-data
      * @param {string|Object} body_json JSON data to send, either as object or string
      * @param {function(result): void} success_callback Callback on success containing response data
      * @param {function(result): void} failure_callback (Optional) callback on failure containing response data or status

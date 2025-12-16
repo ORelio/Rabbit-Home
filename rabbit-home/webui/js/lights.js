@@ -2,95 +2,41 @@
 
 var Lights = {
 
-    RefreshStatus: function() {
-        window.API.GET('/api/v1/lights', function(result) {
-            var lights = Object.keys(result);
-            var tr = null;
-            for (var i=0; i < lights.length; i++) {
-                var light = lights[i];
-
-                var light_node = document.getElementById('light_' + light);
-                var light_node_state_img = null;
-
-                // Create node in list if not present yet
-                if (light_node === null) {
-
-                    //Add at most 4 elements per row, then create new row
-                    if (i%4 == 0) {
-                        if (tr != null) {
-                            document.getElementById('all_lights').appendChild(tr);
-                        }
-                        tr = null;
-                    }
-
-                    light_node = document.createElement('td');
-                    light_node.id = 'light_' + light;
-                    light_node.setAttribute('data-light', light);
-                    light_node.onclick = Lights.Toggle;
-
-                    var light_name = document.createElement('div');
-                    light_name.innerText = Tools.UpFirst(light);
-                    light_name.className = 'name';
-                    light_node.appendChild(light_name);
-
-                    var light_node_state_div = document.createElement('div');
-                    light_node_state_img = document.createElement('img');
-                    light_node_state_img.id = 'light_' + light + '_state';
-                    light_node_state_div.appendChild(light_node_state_img);
-                    light_node.appendChild(light_node_state_div);
-
-                    if (tr == null) {
-                        tr = document.createElement('tr');
-                    }
-                    tr.appendChild(light_node);
-                } else {
-                    light_node_state_img = document.getElementById('light_' + light + '_state');
-                }
-
-                // Update light state
-                light_node_state_img.alt = result[light]['on'] != null ? (result[light]['on'] ? 'ON' : 'OFF') : '?';
-                light_node_state_img.src = Lights.Status2Image(result[light]);
-            }
-            if (tr != null) {
-                document.getElementById('all_lights').appendChild(tr);
-            }
-        });
-    },
-
-    RefreshStatusLoop: function() {
-        setTimeout(Lights.RefreshStatusLoop, 300000); // 5 minutes
-        Lights.RefreshStatus();
-    },
-
     Initialize: function() {
-        setTimeout(Lights.RefreshStatusLoop, 100);
+        Tools.ScheduleAutoRefresh(Lights.RefreshStatus);
     },
 
-    Status2Image: function(light_status) {
-        if (light_status['on'] === null) {
-            return 'img/lights/unknown.png';
-        } else if (light_status['on']) {
-            if (light_status['dimmable'] && light_status['brightness'] <= 50) {
-                return 'img/lights/low.png';
-            } else if (light_status['dimmable'] && light_status['brightness'] <= 80) {
-                return 'img/lights/medium.png';
-            } else {
-                return 'img/lights/high.png';
+    RefreshStatus: function() {
+        Tools.ApiToTable(window.API.GET, '/api/v1/lights', 'all_lights', 'light_',
+            function(item_name, item_data, item_node, initial_build) {
+                if (initial_build) {
+                    var item_state = document.createElement('div');
+                    var item_state_img = document.createElement('img');
+                    item_state_img.id = 'light_' + item_name + '_state';
+                    item_state.appendChild(item_state_img);
+                    item_node.appendChild(item_state);
+                    item_node.onclick = Tools.NamedClickCallback(Lights.Toggle);
+                }
+                var state_img = document.getElementById('light_' + item_name + '_state');
+                state_img.alt = item_data['on'] != null ? (item_data['on'] ? 'ON' : 'OFF') : '?';
+                if (item_data['on'] === null) {
+                    state_img.src =  'img/lights/unknown.png';
+                } else if (item_data['on']) {
+                    if (item_data['dimmable'] && item_data['brightness'] <= 50) {
+                        state_img.src =  'img/lights/low.png';
+                    } else if (item_data['dimmable'] && item_data['brightness'] <= 80) {
+                        state_img.src =  'img/lights/medium.png';
+                    } else {
+                        state_img.src =  'img/lights/high.png';
+                    }
+                } else {
+                    state_img.src =  'img/lights/off.png';
+                }
             }
-        } else {
-            return 'img/lights/off.png';
-        }
+        );
     },
 
-    Toggle: function(click) {
-        var click_target = click.target;
-        if (click_target.getAttribute('data-light') == null) {
-            click_target = click_target.parentElement;
-            if (click_target.getAttribute('data-light') == null) {
-                click_target = click_target.parentElement;
-            }
-        }
-        var light = click_target.getAttribute('data-light');
+    Toggle: function(light) {
         var light_state = document.getElementById('light_' + light + '_state').alt == 'ON';
         window.API.POST('/api/v1/lights/' + light + '/' + (light_state ? 'off' : 'on'), {}, Lights.RefreshStatus);
     },
