@@ -5,6 +5,7 @@
 # By ORelio (c) 2023-2024 - CDDL 1.0
 # ==========================================================================================
 
+from flask import Blueprint, jsonify
 from configparser import ConfigParser
 from threading import Thread, Lock
 
@@ -326,3 +327,37 @@ def operate(shutter: str, state: ShutterState, target_half_state = None, direct_
     # Normal shutter operation
     else:
         return shutters.operate(shutter, state, target_half_state)
+
+# === HTTP API ===
+
+shutters_api = Blueprint('shutters_api', __name__)
+
+@shutters_api.route('/api/v1/shutters', methods = ['GET'])
+def shutters_api_get():
+    result = {}
+    for shutter in _shutter_to_presets:
+        result[shutter] = shutters.get_current_state_percent(shutter)
+    return jsonify(result)
+
+@shutters_api.route('/api/v1/shutters/<shutter>/<state>', methods = ['POST'])
+def shutters_api_set(shutter: str, state: str):
+    if not shutter or not shutter.lower() in _shutter_to_presets:
+        return jsonify({'success': False, 'message': 'Not Found'}), 404
+    if not state or (not state.upper() in [member.name for member in ShutterState] and not state.isdigit()):
+        return jsonify({'success': False, 'message': 'Invalid parameter'}), 400
+    if state.isdigit() and (int(state) < 0 or int(state) > 100):
+        return jsonify({'success': False, 'message': 'Invalid parameter'}), 400
+    shutter = shutter.lower()
+    percent = None
+    if state.isdigit():
+        percent = int(state)
+        if percent == 0:
+            state = ShutterState.OPEN
+        elif percent == 100:
+            state = ShutterState.CLOSE
+        else:
+            state = ShutterState.HALF
+    else:
+        state = ShutterState[state.upper()]
+    operate(shutter, state, percent)
+    return jsonify({'success': True})

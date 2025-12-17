@@ -5,7 +5,7 @@
 # Uses 'shuttercmd' command to connect to the microcontroller over serial
 # See utilities/shuttercmd folder for source code and setup instructions
 # To use another shutter protocol, edit _send_command() function below
-# By ORelio (c) 2023-2024 - CDDL 1.0
+# By ORelio (c) 2023-2025 - CDDL 1.0
 # ===========================================================================
 
 from threading import Thread, Lock
@@ -126,6 +126,8 @@ def get_current_state(shutter: str) -> ShutterState:
     Returns current state or STOP if unknown
     '''
     state_percent = _shutter_state_percent.get(shutter, None)
+    if state_percent is None:
+        return ShutterState.STOP
     if state_percent <= 0:
         return ShutterState.OPEN
     elif state_percent >= 100:
@@ -232,7 +234,7 @@ def _move_to_state_percent(shutter: str, desired_state_percent: int, thread_toke
     if current_state == desired_state_percent:
         if _shutter_thread_tokens[shutter] == thread_token:
             logs.debug('Current state for {} is equal to desired state: {}%'.format(shutter, current_state))
-        # Does not hurt to send command anyway for fully open/closed states
+        # Does not hurt to send command anyway for fully open/closed states, can fix desync
         if desired_state_percent == 0:
             _send_command_from_thread(shutter, ShutterState.OPEN, thread_token)
         if desired_state_percent == 100:
