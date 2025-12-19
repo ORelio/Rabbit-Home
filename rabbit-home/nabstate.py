@@ -6,7 +6,7 @@
 # By ORelio (c) 2023-2025 - CDDL 1.0
 # ===================================================================================
 
-from flask import Blueprint, request
+from flask import Blueprint, jsonify
 from threading import Thread, Lock
 from typing import Callable
 
@@ -159,35 +159,43 @@ def is_sleeping(rabbit: str) -> bool:
     '''
     return get_state(rabbit) == STATE_ASLEEP or get_state(rabbit) == STATE_OFFLINE
 
-'''
-State API for webhook clients
-'''
+def _auto_initialize():
+    '''
+    Initialize state handler for all rabbits on first module import
+    '''
+    for rabbit in rabbits.get_all():
+        logs.debug('Initializing: ' + rabbit)
+        initialize(rabbit)
+
+Thread(target=_auto_initialize, name='Nabstate Initialization').start()
+
+# === HTTP API ===
+
 nabstate_api = Blueprint('nabstate_api', __name__)
 
-@nabstate_api.route('/api/v1/nabstate/change')
-def nabstate_api_webhook():
-    '''
-    API for changing nabaztag sleep state
-    '''
-    rabbit = request.args.get('rabbit')
-    sleep = str(request.args.get('sleep')).lower().strip() in ['1', 'true']
-    sounds = str(request.args.get('sounds')).lower().strip() in ['1', 'true']
-    logs.info('Nabstate API call: rabbit={}, sleep={}, sounds={}'.format(rabbit, sleep, sounds))
+@nabstate_api.route('/api/v1/rabbits', methods = ['GET'])
+def nabstate_api_get():
+    result = {}
+    for rabbit in rabbits.get_all():
+        state = get_state(rabbit)
+        if not state in [STATE_OFFLINE, STATE_ASLEEP]:
+            state = 'awake'
+        result[rabbit] = state
+    return jsonify(result)
 
-    # Custom argument: Specify Nabaztag IP
-    if rabbit and not rabbits.is_rabbit(rabbit):
-        return 'Invalid request', 400
-
-    # No rabbit set but request comes from a rabbit: set caller as target
-    if rabbit is None and rabbits.is_rabbit(request.remote_addr):
-        rabbit = request.remote_addr
-
+@nabstate_api.route('/api/v1/rabbits/<rabbit>/<state>', methods = ['POST'])
+def nabstate_api_set(rabbit, state):
+    if not rabbit or not rabbits.is_rabbit(rabbit):
+        return jsonify({'success': False, 'message': 'Not Found'}), 404
+    if not state or not state.lower() in ['sleep', 'sleep-silently', 'wakeup', 'wakeup-silently']:
+        return jsonify({'success': False, 'message': 'Invalid parameter'}), 400
+    state = state.lower()
+    sounds = True
+    if state.endswith('-silently'):
+        state = state.split('-')[0]
+        sounds = False
+    sleep = (state == 'sleep')
+    logs.info('Nabstate API: rabbit={}, sleep={}, sounds={}'.format(rabbit, sleep, sounds))
     process_t = Thread(target=set_sleeping, args=[rabbit, sleep, sounds], name='Nabstate API')
     process_t.start()
-
-    return 'OK', 200
-
-# Initialize nabstate on first module import
-for rabbit in rabbits.get_all():
-    logs.debug('Initializing: ' + rabbit)
-    initialize(rabbit)
+    return jsonify({'success': True})

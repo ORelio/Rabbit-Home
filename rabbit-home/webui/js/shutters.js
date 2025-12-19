@@ -65,12 +65,8 @@ var Shutters = {
     },
 
     Toggle: function(shutter) {
-        var callback = function() { };
-        if (Shutters.LastDataChange + 9000 < Date.now()) {
-            Shutters.LastDataChange = Date.now();
-            callback = Shutters.RefreshBurst;
-        }
+        Shutters.LastDataChange = Date.now();
         var shutter_state = document.getElementById('shutter_' + shutter + '_state').alt != 'closed';
-        window.API.POST('/api/v1/shutters/' + shutter + '/' + (shutter_state ? 'close' : 'open'), {}, callback);
+        window.API.POST('/api/v1/shutters/' + shutter + '/' + (shutter_state ? 'close' : 'open'), {}, Shutters.RefreshBurst);
     },
 }
