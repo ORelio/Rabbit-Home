@@ -39,6 +39,10 @@ body, button {
 	body {
 		line-height: 5vh;
 	}
+
+	#header {
+		margin-bottom: -1vh;
+	}
 }
 
 hr {
@@ -76,7 +80,7 @@ th {
 button {
 	margin-top: 0.5em;
 	height: 2em;
-	padding: 0 0.5em;
+	padding: 0.15em 0.5em;
 	border: 2px solid black;
 	border-radius: 0.5em;
 	background-color: transparent;
@@ -84,8 +88,11 @@ button {
 }
 
 button.selected {
-	background-color: black;
-	color: white;
+	background-color: lightgray;
+}
+
+button img {
+	max-height: 1.5em;
 }
 
 table.items {

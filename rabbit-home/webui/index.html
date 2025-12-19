@@ -15,11 +15,20 @@
         <script src="js/shutters.js"></script>
     </head>
     <body>
-        <div id="debug"></div>
-        <button onclick="Tools.SwitchTab(this)" class="tab_button selected" data-tab-id="weather">Météo</button>
-        <button onclick="Tools.SwitchTab(this)" class="tab_button" data-tab-id="plugs">Prises</button>
-        <button onclick="Tools.SwitchTab(this)" class="tab_button" data-tab-id="lights">Lumières</button>
-        <button onclick="Tools.SwitchTab(this)" class="tab_button" data-tab-id="shutters">Volets</button>
+        <div id="header">
+            <button onclick="Tools.SwitchTab(this)" class="tab_button selected" data-tab-id="weather">
+                <img src="img/weather/day/cloud-sun.png" alt="Weather" />
+            </button>
+            <button onclick="Tools.SwitchTab(this)" class="tab_button" data-tab-id="plugs">
+                <img src="img/plugs/plug.png" alt="Plugs" />
+            </button>
+            <button onclick="Tools.SwitchTab(this)" class="tab_button" data-tab-id="lights">
+                <img src="img/lights/medium.png" alt="Lights" />
+            </button>
+            <button onclick="Tools.SwitchTab(this)" class="tab_button" data-tab-id="shutters">
+                <img src="img/shutters/half.png" alt="Shutters" />
+            </button>
+        </div>
         <hr />
         <div class="tab" id="weather">
             <table>
