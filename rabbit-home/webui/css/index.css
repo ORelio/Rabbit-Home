@@ -59,7 +59,7 @@ th {
 	padding-bottom: 1vh;
 }
 
-.refresh_time {
+.detail {
 	font-size: 0.5em;
 	line-height: 2.5em;
 	width: 100%;
@@ -67,7 +67,7 @@ th {
 	color: dimgray;
 }
 
-.refresh_time::before {
+.detail.refresh_time::before {
 	font-family: "Wingdings 3";
 	content: "Q"; /* ↺ */
 	padding-right: 1vw;

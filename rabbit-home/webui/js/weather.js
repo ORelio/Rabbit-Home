@@ -47,7 +47,7 @@ var Weather = {
 
                     var item_time = document.createElement('div');
                     item_time.id = 'temperature_' + item_name + '_time';
-                    item_time.className = 'refresh_time';
+                    item_time.className = 'detail refresh_time';
                     item_node.appendChild(item_time);
                 }
                 document.getElementById('temperature_' + item_name + '_value').innerText = item_data.temperature ? Weather.RoundedTemperature(item_data.temperature, 1) : '--.-';

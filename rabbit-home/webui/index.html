@@ -6,17 +6,20 @@
         <link rel="stylesheet" href="css/weather.css" />
         <link rel="stylesheet" href="css/plugs.css" />
         <link rel="stylesheet" href="css/lights.css" />
+        <link rel="stylesheet" href="css/shutters.css" />
         <script src="js/api.js"></script>
         <script src="js/tools.js"></script>
         <script src="js/weather.js"></script>
         <script src="js/plugs.js"></script>
         <script src="js/lights.js"></script>
+        <script src="js/shutters.js"></script>
     </head>
     <body>
         <div id="debug"></div>
         <button onclick="Tools.SwitchTab(this)" class="tab_button selected" data-tab-id="weather">Météo</button>
         <button onclick="Tools.SwitchTab(this)" class="tab_button" data-tab-id="plugs">Prises</button>
         <button onclick="Tools.SwitchTab(this)" class="tab_button" data-tab-id="lights">Lumières</button>
+        <button onclick="Tools.SwitchTab(this)" class="tab_button" data-tab-id="shutters">Volets</button>
         <hr />
         <div class="tab" id="weather">
             <table>
@@ -29,7 +32,7 @@
                             <span id="weather_today_maximum"></span>
                             <span id="weather_today_minimum" class="minimum"></span>
                         </div>
-                        <div id="weather_refreshed" class="refresh_time"></div>
+                        <div id="weather_refreshed" class="detail refresh_time"></div>
                     </td>
                     <td class="forecast">
                         <div class="title">Prévisions</div>
@@ -106,6 +109,14 @@
             </table>
             <script type="text/javascript">
                 Lights.Initialize();
+            </script>
+        </div>
+        <div class="tab" id="shutters" style="display: none">
+            <table id="all_shutters" class="items">
+                <!-- Filled in dynamically -->
+            </table>
+            <script type="text/javascript">
+                Shutters.Initialize();
             </script>
         </div>
     </body>
