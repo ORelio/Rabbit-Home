@@ -95,6 +95,7 @@ var Weather = {
             "Neige / Averses de neige": "snow",
             "Neige": "snow",
             "Averses de neige": "snow",
+            "Averses de neige faible": "snow-low",
             "Neige forte": "snow",
             "Quelques flocons": "snow-low",
             "Pluie et neige": "rain-snow",
