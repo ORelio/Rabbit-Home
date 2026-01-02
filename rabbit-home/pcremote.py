@@ -56,12 +56,13 @@ else:
             logs.warning('Duplicate command "{}", keeping the first one.'.format(alias))
     logs.debug('Loaded {} command aliases: {}'.format(len(_commands), ', '.join(_commands.keys())))
 
-def send(device: str, command: str, timeout_seconds: int = 10) -> bool:
+def send(device: str, command: str, timeout_seconds: int = 10, retries: int = 2) -> bool:
     '''
     Send a command to the specified device
     device: Name of the device to operate
     command: Name of command to send
     timeout_seconds: Network timeout in seconds (default: 10)
+    retries: Amount of additional tries in case of failure (default: 2)
     returns TRUE if send succeeded
     '''
     if _hello_string is None:
@@ -76,19 +77,28 @@ def send(device: str, command: str, timeout_seconds: int = 10) -> bool:
         if command in _commands:
             command_id = _commands[command]
             logs.info('Sending command {} to {}'.format(command, device))
-            try:
-                server = socket.socket()
-                if timeout_seconds > 0:
-                    server.settimeout(timeout_seconds)
-                server.connect((ip, port))
-                server.send((_hello_string + "\n").encode())
-                challenge = server.recv(1024).decode().split("\n")[0]
-                response = hashlib.sha256((challenge + api_key + command_id).encode()).hexdigest()
-                server.send((response + "\n").encode())
-                status = server.recv(128).decode()
-                return status == 'OK'
-            except Exception as ex:
-                logs.warning('Failed to send command: ' + type(ex).__name__)
+            while True:
+                status = 'CommunicationError'
+                try:
+                    server = socket.socket()
+                    if timeout_seconds > 0:
+                        server.settimeout(timeout_seconds)
+                    server.connect((ip, port))
+                    server.send((_hello_string + "\n").encode())
+                    challenge = server.recv(1024).decode().split("\n")[0]
+                    response = hashlib.sha256((challenge + api_key + command_id).encode()).hexdigest()
+                    server.send((response + "\n").encode())
+                    status = server.recv(128).decode().split("\n")[0]
+                except Exception as ex:
+                    if retries <= 0:
+                        logs.warning('Failed to send command: ' + type(ex).__name__)
+                        return False
+                if status == 'OK':
+                    return True
+                if retries <= 0:
+                    logs.warning('Failed to send command: {}'.format(status))
+                    return False
+                retries -= 1
         else:
             logs.warning('Unknown command: ' + command)
     else:
