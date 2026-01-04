@@ -54,7 +54,7 @@ var Shutters = {
                 state_img.alt = state;
 
                 var value_div = document.getElementById('shutter_' + item_name + '_value');
-                var value_str = item_data != null ? item_data + ' %' : '';
+                var value_str = item_data != null ? item_data + ' %' : '---';
 
                 if (value_div.innerText != value_str) {
                     value_div.innerText = value_str;
