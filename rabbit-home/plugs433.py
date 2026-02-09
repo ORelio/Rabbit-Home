@@ -18,6 +18,7 @@ from logs import logs
 
 _devices = {}
 _device_state = {}
+_device_hidden = {}
 _state_lock = Lock()
 
 _DEVICE_COMMAND="codesend"
@@ -91,9 +92,7 @@ def _switch(device: str, state: bool, sends: int = 3, delay_seconds: int = 1):
     if delay_seconds < 0:
         delay_seconds = 0
     device = device.lower()
-    device_data = _devices[device].split(':')
-    channel = device_data[0]
-    unit = device_data[1]
+    channel, unit = _devices[device]
     state_str = 'ON' if state else 'OFF'
     logs.info('Setting state {} for device {} ({} send{})'.format(
         state_str, device, sends, 's' if sends > 1 else ''))
@@ -143,21 +142,6 @@ def switch(device: str, state: bool, sends: int = 3, delay_seconds: int = 1, syn
         )
         _switch_thread.start()
 
-for name in config.options('Plugs'):
-    device_code = config.get('Plugs', name)
-    display_name = name.lower()
-    if display_name in _devices:
-        raise ValueError('Duplicate plug name: ' + display_name)
-    device_data = device_code.split(':')
-    if len(device_data) != 2:
-        raise ValueError('Invalid plug data for {}: "{}". Expecting [01]{5}:[ABCDE]{1,5}'.format(display_name, device_code))
-    try:
-        _calculate_code(device_data[0], device_data[1], True)
-    except ValueError as e:
-        raise ValueError('Invalid plug data for {}: "{}". Expecting [01]{5}:[ABCDE]{1,5}'.format(display_name, device_code))
-    _devices[display_name] = device_code
-logs.debug('Loaded {} plug aliases: {}'.format(len(_devices), ', '.join(list(_devices.keys()))))
-
 # === HTTP API ===
 
 plugs_api = Blueprint('plugs_api', __name__)
@@ -166,7 +150,8 @@ plugs_api = Blueprint('plugs_api', __name__)
 def plugs433_api_get():
     devices = {}
     for device in _devices:
-        devices[device] = _device_state.get(device, None)
+        if not device in _device_hidden or not _device_hidden[device]:
+            devices[device] = _device_state.get(device, None)
     return jsonify(devices)
 
 @plugs_api.route('/api/v1/plugs/<device>/<state>', methods = ['POST'])
@@ -180,3 +165,28 @@ def plugs433_api_set(device, state):
     Thread(target=switch, args=[device, state], name='Plugs433 API SetState').start()
     logs.info('Web API: Switching device {}'.format(device))
     return jsonify({'success': True, 'state': _device_state.get(device, None)})
+
+# === Load configuration file ===
+
+for plug_name_raw in config.sections():
+    if plug_name_raw == 'Plugs':
+        logs.warning('Found a "Plugs" config section, old config files need to be rearranged.')
+    plug_name = plug_name_raw.lower()
+    plug_channel = config.get(plug_name_raw, 'Channel')
+    plug_address = config.get(plug_name_raw, 'Address').upper()
+    plug_hidden = config.getboolean(plug_name_raw, 'Hidden', fallback=False)
+    try:
+        _calculate_code(plug_channel, plug_address, True)
+    except ValueError as e:
+        raise ValueError('Invalid channel/address data for "{}": Got "{}" / "{}", expecting [01]{5} / [ABCDE]{1,5}'.format(plug_name, plug_channel, plug_address))
+    if plug_name in _devices:
+        raise ValueError('Duplicate plug name: {}'.format(plug_name_raw))
+    _devices[plug_name] = (plug_channel, plug_address)
+    if plug_hidden:
+        _device_hidden[plug_name] = True
+    logs.debug('Loaded plug "{}" (Channel={}, Address={}, Hidden={})'.format(
+        plug_name,
+        plug_channel,
+        plug_address,
+        plug_hidden
+    ))
