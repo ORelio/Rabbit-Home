@@ -336,7 +336,7 @@ def sensor_health_monitoring_thread():
     Monitor sensor data timestamps to make sure sensors are still sending data. If not, generate an alert
     '''
     _lost_sensors = dict()
-    time.sleep(2400) # leave time for sensors to send initial data
+    time.sleep(4200) # leave time for sensors to send initial data
     while True:
         time.sleep(2400)
         with _last_temperature_time_lock:
