@@ -80,15 +80,15 @@ th {
 button {
 	margin-top: 0.5em;
 	height: 2em;
-	padding: 0.15em 0.5em;
-	border: 2px solid black;
+	padding: 0.15em 0.25em;
+	border: 2px solid transparent;
 	border-radius: 0.5em;
 	background-color: transparent;
 	cursor: pointer;
 }
 
 button.selected {
-	background-color: lightgray;
+	border-color: black;
 }
 
 button img {
