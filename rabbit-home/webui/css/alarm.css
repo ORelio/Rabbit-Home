@@ -1,0 +1,38 @@
+#alarm table {
+	width: 100%;
+}
+
+#alarm .title {
+	width: 100%;
+	text-align: center;
+	margin-bottom: 0.5em;
+}
+
+#alarm td.status {
+	width: 60%;
+	text-align: center;
+}
+
+#alarm td.openings {
+	vertical-align: top;
+}
+
+#alarm_status {
+	height: 25vh;
+	padding-bottom: 0.5em;
+}
+
+#all_cameras img {
+	height: 1.5em;
+	margin: 0.5em auto 0 auto;
+}
+
+#all_openings div {
+	display: inline-block;
+	vertical-align: top;
+	height: 1.5em;
+}
+
+#all_openings img {
+	height: 1.5em;
+}

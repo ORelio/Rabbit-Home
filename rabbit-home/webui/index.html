@@ -8,6 +8,7 @@
         <link rel="stylesheet" href="css/lights.css" />
         <link rel="stylesheet" href="css/shutters.css" />
         <link rel="stylesheet" href="css/rabbits.css" />
+        <link rel="stylesheet" href="css/alarm.css" />
         <script src="js/api.js"></script>
         <script src="js/tools.js"></script>
         <script src="js/weather.js"></script>
@@ -15,6 +16,7 @@
         <script src="js/lights.js"></script>
         <script src="js/shutters.js"></script>
         <script src="js/rabbits.js"></script>
+        <script src="js/alarm.js"></script>
     </head>
     <body>
         <div id="header">
@@ -32,6 +34,9 @@
             </button>
             <button onclick="Tools.SwitchTab(this)" class="tab_button" data-tab-id="rabbits">
                 <img src="img/rabbits/rabbit.png" alt="Rabbits" />
+            </button>
+            <button onclick="Tools.SwitchTab(this)" class="tab_button" data-tab-id="alarm">
+                <img src="img/alarm/alarm.png" alt="Alarm" />
             </button>
         </div>
         <hr />
@@ -139,6 +144,33 @@
             </table>
             <script type="text/javascript">
                 Rabbits.Initialize();
+            </script>
+        </div>
+        <div class="tab" id="alarm" style="display: none">
+            <table>
+                <tr>
+                    <td class="status">
+                        <div class="title">Alarme</div>
+                        <img id="alarm_status" />
+                        <div>
+                            <div class="title">Caméras</div>
+                            <table id="all_cameras" class="items">
+                                <!-- Filled in dynamically -->
+                            </table>
+                        </div>
+                    </td>
+                    <td class="openings">
+                        <div class="title">Ouvertures</div>
+                        <div class="row">
+                            <table id="all_openings" class="items">
+                                <!-- Filled in dynamically -->
+                            </table>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+            <script type="text/javascript">
+                Alarm.Initialize();
             </script>
         </div>
     </body>
