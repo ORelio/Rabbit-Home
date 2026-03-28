@@ -2,9 +2,10 @@
 
 # ===========================================
 # alarm - home remote monitoring and alerting
-# By ORelio (c) 2025 - CDDL 1.0
+# By ORelio (c) 2025-2026 - CDDL 1.0
 # ===========================================
 
+from flask import Blueprint, jsonify
 from threading import Thread, Lock
 from configparser import ConfigParser
 
@@ -248,3 +249,11 @@ if is_enabled():
         topic=_notification_topic
     )
     _enable_alarm(with_grace_time=False)
+
+# === HTTP API ===
+
+alarm_api = Blueprint('alarm_api', __name__)
+
+@alarm_api.route('/api/v1/alarm', methods = ['GET'])
+def alarm_api_get():
+    return jsonify({'enabled': is_enabled()})
