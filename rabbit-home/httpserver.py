@@ -2,7 +2,7 @@
 
 # ========================================
 # httpserver - HTTP server for module APIs
-# By ORelio (c) 2023-2024 - CDDL 1.0
+# By ORelio (c) 2023-2026 - CDDL 1.0
 # ========================================
 
 from configparser import ConfigParser
@@ -20,6 +20,9 @@ from temperature import temperature_api
 from weather import weather_api
 from lights import lights_api
 from shutters_auto import shutters_api
+from openings import openings_api
+from cameras import cameras_api
+from alarm import alarm_api
 from webui import web_ui
 
 config = ConfigParser()
@@ -39,6 +42,9 @@ app.register_blueprint(temperature_api)
 app.register_blueprint(weather_api)
 app.register_blueprint(lights_api)
 app.register_blueprint(shutters_api)
+app.register_blueprint(openings_api)
+app.register_blueprint(cameras_api)
+app.register_blueprint(alarm_api)
 app.register_blueprint(web_ui)
 
 soundplayer.set_base_url(url)
