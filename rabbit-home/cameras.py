@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 
-# =============================
+# ==================================
 # cameras - manage RTSP cameras
-# By ORelio (c) 2025 - CDDL 1.0
-# =============================
+# By ORelio (c) 2025-2026 - CDDL 1.0
+# ==================================
 
+from flask import Blueprint, jsonify
 from threading import Thread, Lock
 from configparser import ConfigParser
 from datetime import datetime
@@ -36,6 +37,9 @@ _camera_screenshot_channel = {}
 _camera_power_socket = {}
 
 _DEFAULT_RTSP_PORT = 554
+
+_last_seen = {}
+_last_seen_lock = {}
 
 config = ConfigParser()
 config.read('config/cameras.ini')
@@ -74,6 +78,8 @@ for camera_name_raw in config.sections():
     _camera_screenshot_frequency_minutes[camera_name] = camera_screenshot_frequency_minutes
     _camera_screenshot_channel[camera_name] = camera_screenshot_channel
     _camera_power_socket[camera_name] = camera_power_socket
+    _last_seen[camera_name] = 0
+    _last_seen_lock[camera_name] = Lock()
     logs.debug(('Loaded camera "{}" (IP={}, Port={}, Stream={}, StreamLowDef={}, Account={}, '
         + 'ScreenshotFrequency={}min, ScreenshotChannel={}, PowerSocket={})').format(
             camera_name,
@@ -360,6 +366,8 @@ def _monitor_thread(camera: str, thread_token: int):
             break
 
         if is_reachable(camera):
+            with _last_seen_lock[camera]:
+                _last_seen[camera] = time.time()
             if camera_lost:
                 camera_lost = False
                 capture_and_send(camera,
@@ -376,6 +384,8 @@ def _monitor_thread(camera: str, thread_token: int):
                     )
                     next_screenshot_time = time.time() + (frequency * 60)
         elif not camera_lost:
+            with _last_seen_lock[camera]:
+                _last_seen[camera] = 0
             camera_lost = True
             if _camera_socket_off_time[camera] + 60 > time.time():
                 logs.info('Camera just switched off, ignoring "camera not responding" error: {}'.format(camera))
@@ -430,6 +440,8 @@ def _stop_monitoring_thread(camera: str = None):
         if _camera_power_socket[camera]:
             _camera_socket_off_time[camera] = time.time()
             _switch_camera_socket(camera=camera, on=False)
+        with _last_seen_lock[camera]:
+            _last_seen[camera] = 0
         if _camera_thread_token[camera] == _TOKEN_INACTIVE:
             logs.debug('Monitoring already stopped for camera: {}'.format(camera))
         else:
@@ -456,3 +468,18 @@ def stop_monitoring(camera: str = None, synchronous: bool = False):
         for camera in cameras:
             t = Thread(target=_stop_monitoring_thread, args=[camera], name='Stop camera monitoring (camera={})'.format(camera))
             t.start()
+
+# === HTTP API ===
+
+cameras_api = Blueprint('cameras_api', __name__)
+
+@cameras_api.route('/api/v1/cameras', methods = ['GET'])
+def cameras_api_get():
+    response = {}
+    for camera in _cameras:
+        with _last_seen_lock[camera]:
+            response[camera] = {
+                'state': 'online' if _last_seen[camera] + 120 > time.time() else 'offline',
+                'refreshed': int(_last_seen[camera]) if _last_seen[camera] > 0 else None
+            }
+    return jsonify(response)
