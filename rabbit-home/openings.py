@@ -2,9 +2,10 @@
 
 # ==============================================
 # openings - monitor and query window/door state
-# By ORelio (c) 2024-2025 - CDDL 1.0
+# By ORelio (c) 2024-2026 - CDDL 1.0
 # ==============================================
 
+from flask import Blueprint, jsonify
 from threading import Lock
 from configparser import ConfigParser
 from enum import Enum
@@ -159,3 +160,20 @@ def _enocean_callback(sender_name: str, contact_event: object):
         event_handler.dispatch(opening_name, bool_to_openstate(closed), get_shutter_from_opening(opening_name), get_rabbit_from_opening(opening_name), opening_name == _front_door)
 
 enocean.contact_event_handler.subscribe(_enocean_callback)
+
+# === HTTP API ===
+
+openings_api = Blueprint('openings_api', __name__)
+
+@openings_api.route('/api/v1/openings', methods = ['GET'])
+def openings_api_get():
+    openings = {}
+    for opening in _opening_to_device:
+        closed = _is_closed.get(opening, None)
+        if closed == None:
+            openings[opening] = 'unknown'
+        elif closed:
+            openings[opening] = 'closed'
+        else:
+            openings[opening] = 'open'
+    return jsonify(openings)
