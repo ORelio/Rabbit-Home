@@ -47,7 +47,7 @@ for name_raw in config.sections():
     device = config.get(name_raw, 'device')
     shutter = config.get(name_raw, 'shutter', fallback=None)
     rabbit = config.get(name_raw, 'rabbit', fallback=None)
-    is_front_door = config.getboolean(name_raw, 'frontdoor', fallback=False)
+    item_is_front_door = config.getboolean(name_raw, 'frontdoor', fallback=False)
     device_data = device.split(':')
     if len(device_data) != 2:
         raise ValueError('Invalid device identifier for {}: "{}". Expecting type:devicename'.format(name, device_data))
@@ -63,7 +63,7 @@ for name_raw in config.sections():
         shutter = shutter.lower()
     if shutter and shutter in _shutter_to_opening:
         raise ValueError('Shutter mapped to several openings: {}'.format(shutter))
-    if is_front_door and _front_door:
+    if item_is_front_door and _front_door:
         raise ValueError('Duplicate front door: {}, {}'.format(_front_door, name))
     _opening_to_device[name] = device
     _device_to_opening[device] = name
@@ -76,15 +76,15 @@ for name_raw in config.sections():
             _rabbit_to_openings[rabbit] = []
         if not name in _rabbit_to_openings[rabbit]:
             _rabbit_to_openings[rabbit].append(name)
-    if is_front_door:
+    if item_is_front_door:
         _front_door = name
-    logs.debug('Loaded opening "{}" (device="{}", shutter="{}", rabbit="{}", frontdoor="{}")'.format(name, device, shutter, rabbit, is_front_door))
+    logs.debug('Loaded opening "{}" (device="{}", shutter="{}", rabbit="{}", frontdoor="{}")'.format(name, device, shutter, rabbit, item_is_front_door))
 for rabbit in _rabbit_to_openings:
     logs.debug('Rabbit "{}" has {} opening(s): {}'.format(rabbit, len(_rabbit_to_openings[rabbit]), ', '.join(_rabbit_to_openings[rabbit])))
 
 # == State API ==
 
-def bool_to_openstate(closed: bool) -> OpenState:
+def _bool_to_openstate(closed: bool) -> OpenState:
     '''
     Convert closed: bool to OpenState
     '''
@@ -103,9 +103,21 @@ def get_current_state(opening: str = None, shutter: str = None) -> OpenState:
         opening = get_opening_from_shutter(shutter)
         if not shutter:
             raise ValueError('Unknown opening for shutter: {}'.format(shutter))
-    return bool_to_openstate(_is_closed.get(shutter, None))
+    return _bool_to_openstate(_is_closed.get(opening, None))
 
 # == Data APIs ==
+
+def get_all() -> list[str]:
+    '''
+    Get a list of all openings
+    '''
+    return list(_opening_to_device.keys())
+
+def is_front_door(opening: str) -> bool:
+    '''
+    Tell whether the specified opening is front door
+    '''
+    return opening.lower() == _front_door
 
 def get_opening_from_shutter(shutter: str) -> str:
     '''
@@ -157,7 +169,7 @@ def _enocean_callback(sender_name: str, contact_event: object):
         with _data_lock:
             _is_closed[opening_name] = closed
             datastore.set(_DATASTORE_IS_CLOSED, _is_closed)
-        event_handler.dispatch(opening_name, bool_to_openstate(closed), get_shutter_from_opening(opening_name), get_rabbit_from_opening(opening_name), opening_name == _front_door)
+        event_handler.dispatch(opening_name, _bool_to_openstate(closed), get_shutter_from_opening(opening_name), get_rabbit_from_opening(opening_name), opening_name == _front_door)
 
 enocean.contact_event_handler.subscribe(_enocean_callback)
 
