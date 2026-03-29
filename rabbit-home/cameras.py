@@ -135,9 +135,12 @@ def _switch_camera_socket(on: bool, camera: str = None):
             raise ValueError('No socket configured for camera "{}" so cannot switch ON/OFF'.format(camera))
         plugs433.switch(socket, on, synchronous=True)
 
-def is_reachable(camera: str, timeout_seconds: int = 10) -> bool:
+def is_reachable(camera: str, timeout_seconds: int = 10, retries: int = 2) -> bool:
     '''
     Check if the specified camera is up and running
+    timeout_seconds: HTTP request timeout
+    retries: Amount of additional tries in case of failure
+    returns TRUE if the camera is responding properly
     '''
     host = _get_host(camera)
     if timeout_seconds < 5:
@@ -150,7 +153,9 @@ def is_reachable(camera: str, timeout_seconds: int = 10) -> bool:
           and str(e.args[0].args[1]).strip() == 'RTSP/1.0 200 OK':
             return True
     except requests.exceptions.ReadTimeout as e2:
-        return False
+        pass
+    if retries > 0:
+        return is_reachable(camera, timeout_seconds=timeout_seconds, retries = retries - 1)
     return False
 
 def wait_for_camera(camera: str, timeout_seconds = 120) -> bool:
