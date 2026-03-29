@@ -68,7 +68,7 @@ def command(cmd: str):
             _typed_attempts = 0
         if cmd == 'ON' or cmd == 'OFF':
             if len(_typed) == 0:
-                # Ignore button presses if not keycode provided
+                # Ignore button presses if no keycode provided
                 logs.info('Tried to enable or disable alarm but no keycode typed')
             else:
                 # Reject ON/OFF attempts on too many incorrect PINs
@@ -116,14 +116,38 @@ def command(cmd: str):
                         )
                         # TODO Play enable or disable sound
                     elif desired_state:
-                        logs.info('Enabling alarm using valid PIN code')
-                        notifications.publish(
-                            title="Alarme activée",
-                            message='Après saisie du code PIN',
-                            tags='green_circle,lock',
-                            topic=_notification_topic,
-                        )
-                        _enable_alarm()
+                        openings_not_closed = list()
+                        for opening in openings.get_all():
+                            logs.info('Opening {}: {}'.format(opening, openings.get_current_state(opening)))
+                            if not openings.is_front_door(opening) and openings.get_current_state(opening) != OpenState.CLOSED:
+                                openings_not_closed.append(opening)
+                        if len(openings_not_closed) > 0:
+                            logs.info('Tried to enable alarm using valid PIN code, but there are non-closed opening(s): {}'.format(', '.join(openings_not_closed)))
+                            if len(openings_not_closed) > 1:
+                                notifications.publish(
+                                    title="Portes ou fenêtres ouvertes",
+                                    message = "Pour activer l'alarme, manœuvrer les portes ou fenêtres pour s'assurer qu'elles sont fermées : {}".format(', '.join(openings_not_closed)),
+                                    tags='door,window,warning',
+                                    topic=_notification_topic,
+                                    priority=notifications.Priority.HIGH,
+                                )
+                            else:
+                                notifications.publish(
+                                    title="Porte ou fenêtre ouverte",
+                                    message = "Pour activer l'alarme, manœuvrer la porte ou fenêtre pour s'assurer qu'elle est fermée : {}".format(openings_not_closed[0]),
+                                    tags='door,window,warning',
+                                    topic=_notification_topic,
+                                    priority=notifications.Priority.HIGH,
+                                )
+                        else:
+                            logs.info('Enabling alarm using valid PIN code')
+                            notifications.publish(
+                                title="Alarme activée",
+                                message='Après saisie du code PIN',
+                                tags='green_circle,lock',
+                                topic=_notification_topic,
+                            )
+                            _enable_alarm()
                         # TODO Play enable sound
                     else:
                         logs.info('Disabling alarm using valid PIN code')
@@ -221,7 +245,7 @@ def _opening_event_callback(opening_name: str, state: OpenState, shutter_name: s
             priority=notifications.Priority.LOWEST,
             count=10
         )
-        enable_time_before_waiting = _enable_time # If enable time change, this means the alarm was reset
+        enable_time_before_waiting = _enable_time # If enable time changes, this means the alarm was reset
         # TODO play warning sound(s)
         time.sleep(_FRONT_DOOR_GRACE_TIME_SECONDS)
         if is_enabled() and _enable_time == enable_time_before_waiting: # still enabled and not reset
