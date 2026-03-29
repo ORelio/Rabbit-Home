@@ -5,7 +5,7 @@
 # By ORelio (c) 2025-2026 - CDDL 1.0
 # ===========================================
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from threading import Thread, Lock
 from configparser import ConfigParser
 
@@ -281,3 +281,19 @@ alarm_api = Blueprint('alarm_api', __name__)
 @alarm_api.route('/api/v1/alarm', methods = ['GET'])
 def alarm_api_get():
     return jsonify({'enabled': is_enabled()})
+
+@alarm_api.route('/api/v1/alarm/toggle', methods = ['POST'])
+def alarm_api_toggle():
+    reqdata = request.get_json()
+    if reqdata and 'code' in reqdata:
+        for c in reqdata['code']:
+            if c in '1234567890':
+                command(c)
+            else:
+                return jsonify({'error': 'invalid code'})
+        if is_enabled():
+            command('OFF')
+        else:
+            command('ON')
+        return jsonify({'message': 'request submitted'})
+    return jsonify({'error': 'missing code'})

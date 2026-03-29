@@ -11,7 +11,7 @@ var Alarm = {
             var alarm_status = document.getElementById('alarm_status')
             if (alarm_status.alt.length == 0) {
                 // initial build
-                alarm_status.onclick = Alarm.Toggle;
+                alarm_status.onclick = Alarm.ShowKeypad;
             }
             if (result != null) {
                 if (result.enabled) {
@@ -87,7 +87,25 @@ var Alarm = {
         , 3 /* element per row */);
     },
 
-    Toggle: function(plug) {
-        // Not implemented
+    TypedCode: '',
+
+    ShowKeypad: function() {
+        document.getElementById('alarm_data').style.visibility = 'hidden';
+        document.getElementById('alarm_keypad').style.display = 'block';
     },
+
+    KeypadCancel: function() {
+        document.getElementById('alarm_data').style.visibility = 'visible';
+        document.getElementById('alarm_keypad').style.display = 'none';
+        Alarm.TypedCode = '';
+    },
+
+    KeyPress: function(digit) {
+        Alarm.TypedCode = Alarm.TypedCode + digit;
+    },
+
+    KeypadOk: function(digit) {
+        window.API.POST('/api/v1/alarm/toggle', {'code': Alarm.TypedCode}, Alarm.RefreshStatus);
+        Alarm.KeypadCancel();
+    }
 }

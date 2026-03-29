@@ -20,6 +20,7 @@
 #alarm_status {
 	height: 25vh;
 	padding-bottom: 0.5em;
+	cursor: pointer;
 }
 
 #all_cameras img {
@@ -35,4 +36,25 @@
 
 #all_openings img {
 	height: 1.5em;
+}
+
+#alarm_keypad {
+	display: none;
+	position: absolute;
+	top: 17vh;
+	width: 86%;
+}
+
+#alarm_keypad .key {
+	line-height: 4em;
+	width: 33%;
+	text-align: center;
+	color: white;
+	background-color: black;
+	border: 5px solid white;
+	cursor: pointer;
+}
+
+#alarm_keypad .key:hover {
+	background-color: dimgray;
 }

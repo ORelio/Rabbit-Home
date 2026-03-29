@@ -147,7 +147,7 @@
             </script>
         </div>
         <div class="tab" id="alarm" style="display: none">
-            <table>
+            <table id="alarm_data">
                 <tr>
                     <td class="status">
                         <div class="title">Alarme</div>
@@ -169,6 +169,30 @@
                     </td>
                 </tr>
             </table>
+            <div id="alarm_keypad">
+                <table>
+                    <tr>
+                        <td class="key" onclick="Alarm.KeyPress(1);">1</td>
+                        <td class="key" onclick="Alarm.KeyPress(2);">2</td>
+                        <td class="key" onclick="Alarm.KeyPress(3);">3</td>
+                    </tr>
+                    <tr>
+                        <td class="key" onclick="Alarm.KeyPress(4);">4</td>
+                        <td class="key" onclick="Alarm.KeyPress(5);">5</td>
+                        <td class="key" onclick="Alarm.KeyPress(6);">6</td>
+                    </tr>
+                    <tr>
+                        <td class="key" onclick="Alarm.KeyPress(7);">7</td>
+                        <td class="key" onclick="Alarm.KeyPress(8);">8</td>
+                        <td class="key" onclick="Alarm.KeyPress(9);">9</td>
+                    </tr>
+                    <tr>
+                        <td class="key" onclick="Alarm.KeypadCancel();">Annuler</td>
+                        <td class="key" onclick="Alarm.KeyPress(0);">0</td>
+                        <td class="key" onclick="Alarm.KeypadOk();">OK</td>
+                    </tr>
+                </table>
+            </div>
             <script type="text/javascript">
                 Alarm.Initialize();
             </script>
