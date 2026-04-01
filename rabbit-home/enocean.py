@@ -2,7 +2,7 @@
 
 # ==============================================================================================
 # enocean - listen to enocean events using USB to serial adapter
-# By ORelio (c) 2024 - CDDL 1.0
+# By ORelio (c) 2024-2026 - CDDL 1.0
 # Uses 'enoceanserial' command to connect to the dongle over serial and read incoming messages
 # See utilities/enoceanserial folder for source code and setup instructions
 # Serial protocol references:
@@ -382,7 +382,18 @@ def decode_4bs_packet(sender_id: str, user_data: bytes):
     if len(user_data) == 4:
         is_pairing = not get_bit(user_data[3], 4) # LRN bit for Teach-In (pairing) procedure. Always bit 3 of user_data[3]
         if is_pairing:
-            logs.info('From {}: Pairing message'.format(device_id_format(sender_id)))
+            contains_eep = get_bit(user_data[3], 0) # 4BS Teach-In packet may contain Equipment Profile info
+            if contains_eep:
+                teach_in_func = user_data[0] >> 2
+                teach_in_type = ((user_data[0] & 0b11) << 5) + (user_data[1] >> 3)
+                teach_in_manufacturer = ((user_data[1] & 0b111) << 8) + user_data[2]
+                logs.info('From {}: Pairing message. Profile: A5-{}-{}, Manufacturer ID: 0x{}'.format(
+                    device_id_format(sender_id),
+                    format(teach_in_func, '02x'),
+                    format(teach_in_type, '02x'),
+                    format(teach_in_manufacturer, '02x')))
+            else:
+                logs.info('From {}: Pairing message'.format(device_id_format(sender_id)))
         else:
             temperature = None
             if is_profile(sender_id, EnoceanProfile.A5_02_05):
