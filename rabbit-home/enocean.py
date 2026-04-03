@@ -13,6 +13,7 @@
 # https://tools.enocean-alliance.org/EEPViewer/profiles/A5/02/05/A5-02-05.pdf
 # https://tools.enocean-alliance.org/EEPViewer/profiles/A5/02/13/A5-02-13.pdf
 # https://tools.enocean-alliance.org/EEPViewer/profiles/A5/02/13/D5-00-01.pdf
+# https://tools.enocean-alliance.org/EEPViewer/profiles/A5/07/03/A5-07-03.pdf
 # ==============================================================================================
 
 from typing import Callable
@@ -43,7 +44,8 @@ class EnoceanProfile(Enum): # List of currently implemented equipment profiles
     F6_02_01 = 2, # Rocker Switch, 2 Rocker - Light and Blind Control - Application Style 1
     A5_02_05 = 3, # Temperature Sensor Range 0°C to +40°C
     A5_02_13 = 4, # Temperature Sensor Range -30°C to +50°C
-    D5_00_01 = 5  # Single Input Contact Switch
+    D5_00_01 = 5, # Single Input Contact Switch
+    A5_07_03 = 6  # Occupancy Sensor with Supply voltage monitor and 10-bit illumination measurment
 
 # == Load configuration file ==
 
@@ -125,6 +127,17 @@ class ContactEvent:
 class TemperatureEvent():
     temperature: float
 
+@dataclass
+class IlluminationEvent():
+    supply_voltage: float
+    battery_low: bool
+    illumination: int
+
+@dataclass
+class MotionEvent():
+    motion: bool
+    battery_low: bool
+
 '''
 Switch Event Handler
 Callbacks will receive args = (sender_name: str, switch_event: enocean.SwitchEvent)
@@ -148,6 +161,18 @@ Temperature Event Handler
 Callbacks will receive args = (sender_name: str, temperature_event: enocean.TemperatureEvent)
 '''
 temperature_event_handler = EventHandler('Enocean/Temperature')
+
+'''
+Illumination Event Handler
+Callbacks will receive args = (sender_name: str, illumination_event: enocean.IlluminationEvent)
+'''
+illumination_event_handler = EventHandler('Enocean/Illumination')
+
+'''
+Motion Event Handler
+Callbacks will receive args = (sender_name: str, motion_event: enocean.MotionEvent)
+'''
+motion_event_handler = EventHandler('Enocean/Motion')
 
 def _dispatch_event(event_handler: EventHandler, sender_id: str, event_arg):
     '''
@@ -396,15 +421,36 @@ def decode_4bs_packet(sender_id: str, user_data: bytes):
                 logs.info('From {}: Pairing message'.format(device_id_format(sender_id)))
         else:
             temperature = None
+            supply_voltage = None
+            battery_low = False
+            illumination = None
+            occupancy = None
             if is_profile(sender_id, EnoceanProfile.A5_02_05):
                 # 8-bit, values from 255 (0°C) to 0 (+40°C), step: ~0.15°C
                 temperature = ((255 - user_data[2]) / 255) * 40
             elif is_profile(sender_id, EnoceanProfile.A5_02_13):
                 # 8-bit, values from 255 (-30°C) to 0 (+50°C), step: ~0.3°C
                 temperature = ((255 - user_data[2]) / 255) * 80 - 30
+            elif is_profile(sender_id, EnoceanProfile.A5_07_03):
+                # 8-bit, values from 0 (0V) to 250 (5V), 251-255 reserved for error codes
+                if user_data[0] <= 250:
+                    supply_voltage = round((user_data[0] / 250) * 5, 2)
+                    if supply_voltage < 2.7: # STM300 needs at least 2.6 V, per datasheet
+                        battery_low = True
+                # 10 bits, values from 0 to 1000 (lux), 1001 = over range, 1002-1024 reserved
+                illumination = user_data[1] << 2 + (user_data[2] & 0b11)
+                if illumination > 1001:
+                    illumination = None
+                # 1 bit, 1 means occupied (motion detected), 0 means unsure (no motion detected)
+                occupancy = get_bit(user_data[3], 0)
             if temperature:
                 _dispatch_event(temperature_event_handler, sender_id,
                     TemperatureEvent(round(temperature, 2)))
+            if illumination:
+                _dispatch_event(illumination_event_handler, sender_id,
+                    IlluminationEvent(supply_voltage, battery_low, illumination))
+            if occupancy is not None:
+                _dispatch_event(motion_event_handler, sender_id, MotionEvent(occupancy, battery_low))
 
 def decode_vld_packet(sender_id: str, user_data: bytes):
     '''
