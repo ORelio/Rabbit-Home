@@ -8,6 +8,7 @@
 from flask import Blueprint, jsonify, request
 from threading import Thread, Lock
 from configparser import ConfigParser
+from enum import Enum
 
 import time
 
@@ -20,6 +21,7 @@ import motion
 import notifications
 import openings
 import rabbits
+import lights
 
 _command_lock = Lock()
 
@@ -39,8 +41,16 @@ assert(_FRONT_DOOR_GRACE_TIME_SECONDS < _ENABLE_GRACE_TIME_SECONDS)
 _rabbit = None
 _notification_topic = None
 
+class EnableStatus(Enum):
+    GRACE = 1
+    READY = 2
+    PREALARM = 3
+    ALARM = 4
+
+_instance_lock = Lock()
+_instance_token = 0
+_instance_status = EnableStatus.READY
 _DATASTORE_ALARM_ENABLED = 'alarm.enabled'
-_enable_time = 0
 
 config = ConfigParser()
 config.read('config/alarm.ini')
@@ -179,48 +189,109 @@ def is_enabled() -> bool:
     '''
     return datastore.get(_DATASTORE_ALARM_ENABLED, False)
 
+def _grace_timeout_thread(thread_token):
+    '''
+    Enable alarm (thread for grace time)
+    '''
+    global _instance_status
+    time.sleep(_ENABLE_GRACE_TIME_SECONDS)
+    with _instance_lock:
+        if thread_token == _instance_token and is_enabled() and _instance_status == EnableStatus.GRACE:
+            _instance_status = EnableStatus.READY
+
 def _enable_alarm(with_grace_time: bool = True):
     '''
-    Operations for enabling alarm
+    Enable the alarm (internal, after using keycode)
     '''
-    global _enable_time
-    if with_grace_time:
-        _enable_time = time.time()
-    else:
-        _enable_time = time.time() - _ENABLE_GRACE_TIME_SECONDS - 1
-    datastore.set(_DATASTORE_ALARM_ENABLED, True)
-    cameras.start_monitoring()
+    global _instance_token
+    global _instance_status
+    with _instance_lock:
+        _instance_token = time.time()
+        if with_grace_time:
+            _instance_status = EnableStatus.GRACE
+            Thread(target=_grace_timeout_thread, args=[_instance_token], name='Alarm grace timeout').start()
+        else:
+            _instance_status = EnableStatus.READY
+        datastore.set(_DATASTORE_ALARM_ENABLED, True)
+        cameras.start_monitoring()
 
 def _disable_alarm():
     '''
-    Operations for disabling alarm
+    Disable the alarm (internal, after using keycode)
     '''
-    datastore.set(_DATASTORE_ALARM_ENABLED, False)
-    cameras.stop_monitoring()
+    global _instance_token
+    global _instance_status
+    with _instance_lock:
+        _instance_token = 0
+        _instance_status = EnableStatus.READY
+        datastore.set(_DATASTORE_ALARM_ENABLED, False)
+        cameras.stop_monitoring()
+        # TODO turn off alarm bell
 
-def _trigger_alarm_thread():
+def _alarm_bell_and_lights():
     '''
-    Trigger the alarm (underlying thread)
+     Child thread for _triggered_alarm_thread
     '''
-    # TODO ring alarm bell
-    priority = notifications.Priority.HIGHEST
-    while is_enabled():
+    # TODO turn on alarm bell
+    for light in lights.get_all():
+        lights.switch(light, on=True)
+
+def _triggered_alarm_thread(thread_token):
+    '''
+    Initialize triggered alarm (thread)
+    '''
+    global _instance_status
+
+    if _instance_status == EnableStatus.PREALARM:
+        logs.info('Entered prealarm grace delay')
+        notifications.publish(
+            title='Délai de grâce',
+            message="L'alarme va bientôt se déclencher",
+            tags='door,stopwatch',
+            topic=_notification_topic,
+        )
+        time.sleep(_FRONT_DOOR_GRACE_TIME_SECONDS)
+
+    with _instance_lock:
+        if thread_token == _instance_token and is_enabled():
+            _instance_status = EnableStatus.ALARM
+        else:
+            return # Alarm disabled during grace time
+
+    logs.info('Starting alarm')
+    notifications.publish(
+        title='Alarme déclenchée',
+        message='Attention immédiate requise',
+        tags='rotating_light,loud_sound',
+        topic=_notification_topic,
+        priority=notifications.Priority.HIGHEST
+    )
+
+    # Asynchronously turn on bell and lights, need to take the first photo ASAP
+    Thread(target=_alarm_bell_and_lights, name='Triggered Alarm - Bell and Lights').start()
+
+    # Take photos with cameras as long as alarm is triggered
+    while thread_token == _instance_token and is_enabled():
         for camera in cameras.get_all():
             cameras.capture_and_send(
                 camera=camera,
                 title="Alarme déclenchée",
                 message=camera,
                 tags='rotating_light,video_camera',
-                priority=priority,
+                priority=notifications.Priority.LOWEST,
                 synchronous=True,
             )
-        priority = notifications.Priority.LOWEST
 
-def _trigger_alarm():
+def _trigger_alarm(with_prealarm: bool = False):
     '''
     Trigger the alarm
     '''
-    Thread(target=_trigger_alarm_thread, name='Triggered Alarm').start()
+    global _instance_status
+    with _instance_lock:
+        if _instance_status in [ EnableStatus.PREALARM, EnableStatus.ALARM ]:
+            return # sensor callback trying to enable alarm twice, may happen in case of race condition
+        _instance_status = EnableStatus.PREALARM if with_prealarm else EnableStatus.ALARM
+        Thread(target=_triggered_alarm_thread, args=[_instance_token], name='Triggered Alarm').start()
 
 def _opening_event_callback(opening_name: str, state: OpenState, shutter_name: str = None, rabbit_name: str = None, is_front_door: bool = False):
     '''
@@ -234,8 +305,8 @@ def _opening_event_callback(opening_name: str, state: OpenState, shutter_name: s
         logs.debug('Door/Window "{}" opened but alarm is disabled, ignoring'.format(opening_name))
         return
 
-    if _enable_time + _ENABLE_GRACE_TIME_SECONDS >= time.time():
-        logs.debug('Door/Window "{}" opened during grace delay, ignoring'.format(opening_name))
+    if _instance_status != EnableStatus.READY:
+        logs.debug('Door/Window "{}" opened but alarm is not in READY state: (), ignoring'.format(opening_name, _instance_status))
         return
 
     if is_front_door:
@@ -248,17 +319,7 @@ def _opening_event_callback(opening_name: str, state: OpenState, shutter_name: s
             priority=notifications.Priority.LOWEST,
             count=10
         )
-
-        # Reset alarm grace time to make sure other sensors will not trigger the alarm just yet
-        # If enable time changes again after this, this means the alarm was reset by something else so no need to trigger
-        enable_time_before_waiting = _enable_time = time.time()
-
-        # TODO play warning sound(s)
-        time.sleep(_FRONT_DOOR_GRACE_TIME_SECONDS)
-
-        if is_enabled() and _enable_time == enable_time_before_waiting: # still enabled and not reset
-            logs.warning('Alarm not disabled during grace delay, triggering now')
-            _trigger_alarm()
+        _trigger_alarm(with_prealarm=True)
     else:
         logs.warning('Other Door/Window opened after activating the alarm, triggering now')
         notifications.publish(
@@ -279,22 +340,24 @@ def _motion_event_callback(motion_event: motion.MotionEvent):
     if motion_event.outside:
         logs.debug('Motion detected by sensor "{}" but sensor is located outside, ignoring'.format(motion_event.sensor))
         return
+
     if not is_enabled():
         logs.debug('Motion detected by sensor "{}" but alarm is disabled, ignoring'.format(motion_event.sensor))
         return
-    elif _enable_time + _ENABLE_GRACE_TIME_SECONDS >= time.time():
-        logs.debug('Motion detected by sensor "{}" during grace delay, ignoring'.format(motion_event.sensor))
+
+    if _instance_status != EnableStatus.READY:
+        logs.debug('Motion detected by sensor "{}" but alarm is not in READY state: (), ignoring'.format(motion_event.sensor, _instance_status))
         return
-    else:
-        logs.warning('Motion detected by sensor "{}" after activating the alarm, triggering now'.format(motion_event.sensor))
-        notifications.publish(
-            title="Mouvement détecté",
-            message="Le capteur {} s'est déclenché".format(motion_event.sensor),
-            tags='rotating_light,trackball',
-            topic=_notification_topic,
-            priority=notifications.Priority.HIGHEST,
-        )
-        _trigger_alarm()
+
+    logs.warning('Motion detected by sensor "{}" after activating the alarm, triggering now'.format(motion_event.sensor))
+    notifications.publish(
+        title="Mouvement détecté",
+        message="Le capteur {} s'est déclenché".format(motion_event.sensor),
+        tags='rotating_light,trackball',
+        topic=_notification_topic,
+        priority=notifications.Priority.HIGHEST,
+    )
+    _trigger_alarm()
 
 motion.event_handler.subscribe(_motion_event_callback)
 
