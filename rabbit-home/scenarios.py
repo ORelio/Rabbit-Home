@@ -2,7 +2,7 @@
 
 # ==================================================
 # scenarios - manage scenarios and associated events
-# By ORelio (c) 2023-2025 - CDDL 1.0
+# By ORelio (c) 2023-2026 - CDDL 1.0
 # ==================================================
 
 import importlib
@@ -20,6 +20,7 @@ import rabbits
 import pcstate
 import temperature
 import openings
+import motion
 
 from events import EventHandler
 from daycycle import DaycycleState
@@ -44,6 +45,7 @@ class Event(Enum):
     TEMPERATURE_DATA = 13
     OPEN_CLOSE = 14
     PC_STATE = 15
+    MOTION = 16
 
 _nabstate_to_event = {
     nabstate.STATE_FALLING_ASLEEP: Event.SLEEP,
@@ -206,8 +208,15 @@ def _pcstate_event_callback(computer: str, state: PcState, rabbit_name: str):
     '''
     dispatch(Event.PC_STATE, rabbit=rabbit_name, args={'computer': computer, 'state': state})
 
+def _motion_event_callback(motion_event: motion.MotionEvent):
+    '''
+    Listen to motion events to run motion events in scenarios
+    '''
+    dispatch(Event.MOTION, rabbit=motion_event.rabbit, args={'outside': motion_event.outside})
+
 nabstate.event_handler.subscribe(_nabstate_event_callback)
 daycycle.event_handler.subscribe(_daycycle_event_callback)
 temperature.event_handler.subscribe(_temperature_event_callback)
 openings.event_handler.subscribe(_opening_event_callback)
 pcstate.event_handler.subscribe(_pcstate_event_callback)
+motion.event_handler.subscribe(_motion_event_callback)

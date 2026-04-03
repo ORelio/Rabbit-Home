@@ -16,6 +16,7 @@ from openings import OpenState
 
 import cameras
 import datastore
+import motion
 import notifications
 import openings
 import rabbits
@@ -32,6 +33,8 @@ _KEYPAD_MAX_ATTEMPTS = 3
 _KEYPAD_TIMEOUT_SECONDS = 30
 _FRONT_DOOR_GRACE_TIME_SECONDS = 30
 _ENABLE_GRACE_TIME_SECONDS = 75
+
+assert(_FRONT_DOOR_GRACE_TIME_SECONDS < _ENABLE_GRACE_TIME_SECONDS)
 
 _rabbit = None
 _notification_topic = None
@@ -232,7 +235,7 @@ def _opening_event_callback(opening_name: str, state: OpenState, shutter_name: s
         return
 
     if _enable_time + _ENABLE_GRACE_TIME_SECONDS >= time.time():
-        logs.debug('Door/Window "{}" opened quickly after activating alarm, ignoring'.format(opening_name))
+        logs.debug('Door/Window "{}" opened during grace delay, ignoring'.format(opening_name))
         return
 
     if is_front_door:
@@ -245,9 +248,14 @@ def _opening_event_callback(opening_name: str, state: OpenState, shutter_name: s
             priority=notifications.Priority.LOWEST,
             count=10
         )
-        enable_time_before_waiting = _enable_time # If enable time changes, this means the alarm was reset
+
+        # Reset alarm grace time to make sure other sensors will not trigger the alarm just yet
+        # If enable time changes again after this, this means the alarm was reset by something else so no need to trigger
+        enable_time_before_waiting = _enable_time = time.time()
+
         # TODO play warning sound(s)
         time.sleep(_FRONT_DOOR_GRACE_TIME_SECONDS)
+
         if is_enabled() and _enable_time == enable_time_before_waiting: # still enabled and not reset
             logs.warning('Alarm not disabled during grace delay, triggering now')
             _trigger_alarm()
@@ -263,6 +271,32 @@ def _opening_event_callback(opening_name: str, state: OpenState, shutter_name: s
         _trigger_alarm()
 
 openings.event_handler.subscribe(_opening_event_callback)
+
+def _motion_event_callback(motion_event: motion.MotionEvent):
+    '''
+    Callback for motion sensor events
+    '''
+    if motion_event.outside:
+        logs.debug('Motion detected by sensor "{}" but sensor is located outside, ignoring'.format(motion_event.sensor))
+        return
+    if not is_enabled():
+        logs.debug('Motion detected by sensor "{}" but alarm is disabled, ignoring'.format(motion_event.sensor))
+        return
+    elif _enable_time + _ENABLE_GRACE_TIME_SECONDS >= time.time():
+        logs.debug('Motion detected by sensor "{}" during grace delay, ignoring'.format(motion_event.sensor))
+        return
+    else:
+        logs.warning('Motion detected by sensor "{}" after activating the alarm, triggering now'.format(motion_event.sensor))
+        notifications.publish(
+            title="Mouvement détecté",
+            message="Le capteur {} s'est déclenché".format(motion_event.sensor),
+            tags='rotating_light,trackball',
+            topic=_notification_topic,
+            priority=notifications.Priority.HIGHEST,
+        )
+        _trigger_alarm()
+
+motion.event_handler.subscribe(_motion_event_callback)
 
 if is_enabled():
     logs.warning('Alarm was enabled before shutting down service, reenabling')

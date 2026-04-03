@@ -22,7 +22,7 @@ Here is a quick list of each module's purpose:
 | Module                                             | Config file                                                 | Purpose
 |----------------------------------------------------|-------------------------------------------------------------|---------
 | [`actions.py`](rabbit-home/actions.py)             | None                                                        | Allows configuring actions to launch from other modules such as switches and rfid.
-| [`alarm.py`](rabbit-home/alarm.py)                 | [`alarm.ini`](rabbit-home/config/alarm.ini)                 | Remote monitoring using cameras and window/door sensors. Secured using a keypad.
+| [`alarm.py`](rabbit-home/alarm.py)                 | [`alarm.ini`](rabbit-home/config/alarm.ini)                 | Remote monitoring using cameras and window/door/motion sensors. Secured using a keycode.
 | [`cameras.py`](rabbit-home/cameras.py)             | [`cameras.ini`](rabbit-home/config/cameras.ini)             | Monitor RTSP cameras and send notifications with image attachments.
 | [`datastore.py`](rabbit-home/datastore.py)         | [`datastore.json`](rabbit-home/cache/datastore.json)        | Store persistent data across service restarts for use by other modules.
 | [`daycycle.py`](rabbit-home/daycycle.py)           | [`daycycle.ini`](rabbit-home/config/daycycle.ini)           | Calculate sunrise/sunset/etc times based on GPS coordinates using [skyfield](https://github.com/skyfielders/python-skyfield), providing a callback mechanism when these events occur.
@@ -32,6 +32,7 @@ Here is a quick list of each module's purpose:
 | [`infrared.py`](rabbit-home/infrared.py)           | [`infrared.ini`](rabbit-home/config/infrared.ini)           | Wrapper around [IR-Gateway](https://github.com/ORelio/IR-Gateway) for controlling infrared-based devices.
 | [`lights.py`](rabbit-home/lights.py)               | [`lights.ini`](rabbit-home/config/lights.ini)               | Control Shelly lightbulbs through HTTP REST API
 | [`logs.py`](rabbit-home/logs.py)                   | [`logs.ini`](rabbit-home/config/logs.ini)                   | Simple python logger implementation for generating log file and console output for use by other modules.
+| [`motion.py`](rabbit-home/motion.py)               | [`motion.ini](rabbit-home/config/motion.ini)                | Monitor motion sensors from enocean.py and generate events for use by other modules and scenarios.
 | [`nabd.py`](rabbit-home/nabd.py)                   | See rabbits.ini                                             | Wrapper around the [Nabd](https://github.com/nabaztag2018/pynab/blob/master/PROTOCOL.md) service for interacting with [pynab](https://github.com/nabaztag2018/pynab).
 | [`nabstate.py`](rabbit-home/nabstate.py)           | See rabbits.ini                                             | Monitor and/or change rabbit asleep/awake state.
 | [`nabweb.py`](rabbit-home/nabweb.py)               | See rabbits.ini                                             | Wapper around the [pynab](https://github.com/nabaztag2018/pynab) Web-UI for changing settings and launching weather, air quality and taichi animations.
