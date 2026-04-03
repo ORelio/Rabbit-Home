@@ -2,25 +2,24 @@
 
 # ======================================================================================================================
 # temperature - Retrieve temperature from enocean sensors/weather forecast and generate temperature events for scenarios
-# By ORelio (c) 2024 - CDDL 1.0
+# By ORelio (c) 2024-2026 - CDDL 1.0
 # ======================================================================================================================
 
 from flask import Blueprint, jsonify
 from configparser import ConfigParser
 from dataclasses import dataclass
 from threading import Thread, Lock
-from typing import Callable
 from enum import Enum
 
 import time
 
+from events import EventHandler
+from logs import logs
+
 import enocean
 import rabbits
 import weather
-import notifications
-
-from events import EventHandler
-from logs import logs
+import sensorhealth
 
 _device_outside = None
 
@@ -62,7 +61,7 @@ _state_outside = TemperatureEventType.NORMAL
 _state_inside_by_rabbit = dict()
 _state_inside_by_sensor = dict()
 
-# === Load config and import relevant modules ===
+# === Load config ===
 
 config = ConfigParser()
 config.read('config/temperature.ini')
@@ -82,7 +81,7 @@ for sensor in config.sections():
         assert(_threshold_hot_outside < _threshold_hot_forecast)
     else:
         device = config.get(sensor, 'device', fallback=None)
-        devtype = config.get(sensor, 'type', fallback=None)
+        devoutside = config.getboolean(sensor, 'outside', fallback=False)
         devrabbit = config.get(sensor, 'rabbit', fallback=None)
         devrabbit_secondary = config.get(sensor, 'rabbit_secondary', fallback=None)
         correction = config.getfloat(sensor, 'correction', fallback=0)
@@ -91,13 +90,10 @@ for sensor in config.sections():
         device = device.lower()
         if device in _device_to_correction:
             raise ValueError('[Temperature] Duplicate device: "{}"'.format(device))
-        if devtype:
-            if devtype.lower() == 'outside':
-                if _device_outside:
-                    raise ValueError('[Temperature] Duplicate outside devices: "{}", "{}"'.format(device, _device_outside))
-                _device_outside = device
-            else:
-                raise ValueError('[Temperature] Unknown "type" field for "{}"'.format(sensor))
+        if devoutside:
+            if _device_outside:
+                raise ValueError('[Temperature] Duplicate outside devices: "{}", "{}"'.format(device, _device_outside))
+            _device_outside = device
         _device_to_correction[device] = correction
         _device_to_name[device] = name
         _name_to_device[name] = device
@@ -111,8 +107,10 @@ for sensor in config.sections():
         if devrabbit_secondary:
             devrabbit_secondary = rabbits.get_name(devrabbit_secondary)
             _device_to_rabbit_secondary[device] = devrabbit_secondary
-        logs.debug('Loaded sensor {} (device={}, correction={}, type={}, rabbit={}, rabbit_secondary={})'.format(
-            name, device, correction, devtype, devrabbit, devrabbit_secondary))
+        logs.debug('Loaded sensor {} (device={}, correction={}, outside={}, rabbit={}, rabbit_secondary={})'.format(
+            name, device, correction, devoutside, devrabbit, devrabbit_secondary))
+        monitor_rabbit=_device_to_rabbit.get(device, _device_to_rabbit_secondary.get(device, None))
+        sensorhealth.register('temperature', name, timeout_seconds=4200, rabbit=monitor_rabbit, device_tag='thermometer')
 
 logs.debug((
         'Thresholds: forecast_cold={}°C, outdoors_cold={}°C, indoors_cold={}°C, '
@@ -295,12 +293,13 @@ def enocean_callback(sender_name: str, event: object):
         correction = _device_to_correction[device]
         raw_temperature = event.temperature
         temperature = round(raw_temperature + correction, 2)
-        _last_temperature_value[device] = temperature
         with _last_temperature_time_lock:
+            _last_temperature_value[device] = temperature
             _last_temperature_time[device] = time.time()
         if outside:
             _last_temperature_outside = temperature
         event_handler.dispatch(TemperatureEvent(TemperatureEventType.DATA, temperature, sensor, rabbit, outside))
+        sensorhealth.heartbeat('temperature', sensor)
     else:
         logs.warning('No config for device "{}"'.format(device))
 
@@ -329,42 +328,6 @@ def temperature_monitoring_thread():
 _forecast_monitoring_thread = Thread(target=temperature_monitoring_thread, name='Temperature forecast monitor')
 _forecast_monitoring_thread.start()
 
-# === Sensor health monitoring ===
-
-def sensor_health_monitoring_thread():
-    '''
-    Monitor sensor data timestamps to make sure sensors are still sending data. If not, generate an alert
-    '''
-    _lost_sensors = dict()
-    time.sleep(4200) # leave time for sensors to send initial data
-    while True:
-        time.sleep(2400)
-        with _last_temperature_time_lock:
-            for device in _device_to_name:
-                name = _device_to_name[device]
-                if not device in _lost_sensors:
-                    if not device in _last_temperature_time or _last_temperature_time[device] < (time.time() - 4200):
-                        _lost_sensors[device] = True
-                        logs.warning('No data from sensor: {} ({})'.format(name, device))
-                        notifications.publish(
-                            "Pas de réception : {}".format(name),
-                            title='Capteur hors service',
-                            tags='x,thermometer',
-                            rabbit=_device_to_rabbit.get(device, _device_to_rabbit_secondary.get(device, None)))
-                else:
-                    if device in _last_temperature_time and _last_temperature_time[device] > (time.time() - 4200):
-                        del _lost_sensors[device]
-                        logs.info('Sensor is back: {} ({})'.format(name, device))
-                        notifications.publish(
-                            "Capteur revenu : {}".format(name),
-                            title='Capteur opérationnel',
-                            tags='heavy_check_mark,thermometer',
-                            rabbit=_device_to_rabbit.get(device, _device_to_rabbit_secondary.get(device, None)))
-
-if len(_device_to_name) > 0:
-    _health_monitoring_thread = Thread(target=sensor_health_monitoring_thread, name='Temperature sensor health monitor')
-    _health_monitoring_thread.start()
-
 # === HTTP API ===
 
 temperature_api = Blueprint('temperature_api', __name__)
@@ -372,9 +335,10 @@ temperature_api = Blueprint('temperature_api', __name__)
 @temperature_api.route('/api/v1/temperature', methods = ['GET'])
 def temperature_api_get():
     device_info = {}
-    for device in _device_to_name:
-        device_info[_device_to_name[device]] = {
-            'temperature': _last_temperature_value.get(device, None),
-            'time': _last_temperature_time.get(device, None),
-        }
+    with _last_temperature_time_lock:
+        for device in _device_to_name:
+            device_info[_device_to_name[device]] = {
+                'temperature': _last_temperature_value.get(device, None),
+                'time': _last_temperature_time.get(device, None),
+            }
     return jsonify(device_info)

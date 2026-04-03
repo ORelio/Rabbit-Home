@@ -44,6 +44,7 @@ Here is a quick list of each module's purpose:
 | [`rabbits.py`](rabbit-home/rabbits.py)             | [`rabbits.ini`](rabbit-home/config/rabbits.ini)             | Simple name <=> IP mappings for manipulating rabbits by name in other modules.
 | [`rfid.py`](rabbit-home/rfid.py)                   | [`rfid.ini`](rabbit-home/config/rfid.ini)                   | Monitor RFID (NFC) events using nabd.py, and launch actions set in configuration.
 | [`scenarios.py`](rabbit-home/scenarios.py)         | See scenarios below                                         | Load and initialize scenarios, launch scenarios based on event subscription.
+| [`sensorhealth.py`](rabbit-home/sensorhealth.py)   | None                                                        | Sensor health monitoring and reporting routines for use by other modules (temperature, motion...)
 | [`shutters.py`](rabbit-home/shutters.py)           | [`shutters.ini`](rabbit-home/config/shutters.ini)           | Wrapper around [Yokis-Hack](https://github.com/nmaupu/yokis-hack) to control shutters, with fine tracking to calculate (and move to) intermediate height.
 | [`shutters_auto.py`](rabbit-home/shutters_auto.py) | [`shutters_auto.ini`](rabbit-home/config/shutters_auto.ini) | Automatically adjust shutters depending on day/night cycle and outdoor temperature.
 | [`soundplayer.py`](rabbit-home/soundplayer.py)     | None                                                        | API wrapper for playing audio files on rabbits using nabd.py, served over HTTP.
