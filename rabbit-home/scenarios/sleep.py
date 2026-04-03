@@ -16,6 +16,7 @@ import nabstate
 import shutters_auto
 import daycycle
 import nabweb
+import lights
 
 sleeping = dict()
 
