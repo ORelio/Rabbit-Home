@@ -245,7 +245,7 @@ def _triggered_alarm_thread(thread_token):
     if _instance_status == EnableStatus.PREALARM:
         logs.info('Entered prealarm grace delay')
         notifications.publish(
-            title='Délai de grâce',
+            title="Quelqu'un est entré",
             message="L'alarme va bientôt se déclencher",
             tags='door,stopwatch',
             topic=_notification_topic,
@@ -377,7 +377,7 @@ alarm_api = Blueprint('alarm_api', __name__)
 
 @alarm_api.route('/api/v1/alarm', methods = ['GET'])
 def alarm_api_get():
-    return jsonify({'enabled': is_enabled()})
+    return jsonify({'enabled': is_enabled(), 'detail': 'DISABLED' if not is_enabled() else '{}'.format(_instance_status.name)})
 
 @alarm_api.route('/api/v1/alarm/toggle', methods = ['POST'])
 def alarm_api_toggle():

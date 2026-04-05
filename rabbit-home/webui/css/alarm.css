@@ -11,6 +11,7 @@
 #alarm td.status {
 	width: 60%;
 	text-align: center;
+	vertical-align: top;
 }
 
 #alarm td.openings {
@@ -18,14 +19,20 @@
 }
 
 #alarm_status {
-	height: 25vh;
-	padding-bottom: 0.5em;
+	height: 10vh;
 	cursor: pointer;
 }
 
-#all_cameras img {
+#alarm_status_detail {
+	padding-bottom: 0.5em;
+}
+
+#all_alarm_elements img {
 	height: 1.5em;
-	margin: 0.5em auto 0 auto;
+}
+
+#all_alarm_elements .name {
+	line-height: initial;
 }
 
 #all_openings div {

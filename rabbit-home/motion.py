@@ -5,6 +5,7 @@
 # By ORelio (c) 2026 - CDDL 1.0
 # =============================================================================================
 
+from flask import Blueprint, jsonify
 from configparser import ConfigParser
 from dataclasses import dataclass
 from threading import Lock
@@ -100,3 +101,18 @@ def enocean_callback(sender_name: str, event: object):
         logs.warning('No config for device "{}"'.format(device))
 
 enocean.motion_event_handler.subscribe(enocean_callback)
+
+# === HTTP API ===
+
+motion_api = Blueprint('motion_api', __name__)
+
+@motion_api.route('/api/v1/motion', methods = ['GET'])
+def motion_api_get():
+    response = {}
+    with _last_motion_lock:
+        for device in _device_to_name:
+            refreshed = int(_last_motion_time_by_device.get(device, 0))
+            response[_device_to_name[device]] = {
+                'refreshed': refreshed if refreshed > 0 else None
+            }
+    return jsonify(response)

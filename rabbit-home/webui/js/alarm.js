@@ -6,6 +6,21 @@ var Alarm = {
         Tools.ScheduleAutoRefresh(Alarm.RefreshStatus);
     },
 
+    Status2Text: function(state_enum) {
+        var mapping = {
+            "DISABLED": 'Désactivée',
+            "GRACE": 'Activation en cours',
+            "READY": 'Active',
+            "PREALARM": 'Va bientôt sonner',
+            "ALARM": 'Déclenchée',
+        };
+        if (mapping[state_enum] !== undefined) {
+            return mapping[state_enum];
+        } else {
+            return state_enum;
+        }
+    },
+
     RefreshStatus: function() {
         window.API.GET('/api/v1/alarm', function(result) {
             var alarm_status = document.getElementById('alarm_status')
@@ -25,9 +40,10 @@ var Alarm = {
                 alarm_status.src = 'img/alarm/alarm_unknown.png';
                 alarm_status.alt = 'Unknown';
             }
+            document.getElementById('alarm_status_detail').innerText = Alarm.Status2Text(result.detail);
         });
 
-        Tools.ApiToTable(window.API.GET, '/api/v1/openings', 'all_openings', 'opening_',
+        Tools.ApiToTable(API.GET, '/api/v1/openings', 'all_openings', 'opening_',
             function(item_name, item_data, item_node, initial_build) {
                 if (initial_build) {
                     var name_div = item_node.getElementsByTagName('div')[0];
@@ -54,9 +70,14 @@ var Alarm = {
             }
         , 1 /* element per row */);
 
-        Tools.ApiToTable(window.API.GET, '/api/v1/cameras', 'all_cameras', 'camera_',
+        Tools.ApiToTable(API.GET, '/api/v1/cameras', 'all_alarm_elements', 'camera_',
             function(item_name, item_data, item_node, initial_build) {
                 if (initial_build) {
+                    var item_type = document.createElement('div');
+                    item_type.className = 'detail';
+                    item_type.innerText = 'Caméra';
+                    item_node.appendChild(item_type);
+
                     var item_state = document.createElement('div');
                     var item_state_img = document.createElement('img');
                     item_state_img.id = 'camera_' + item_name + '_state';
@@ -83,6 +104,31 @@ var Alarm = {
                     }
                 }
 
+            }
+        , 3 /* element per row */);
+
+        Tools.ApiToTable(API.GET, '/api/v1/motion', 'all_alarm_elements', 'motion_sensor_',
+            function(item_name, item_data, item_node, initial_build) {
+                if (initial_build) {
+                    var item_type = document.createElement('div');
+                    item_type.className = 'detail';
+                    item_type.innerText = 'Capteur';
+                    item_node.appendChild(item_type);
+
+                    var item_img_div = document.createElement('div');
+                    var item_img = document.createElement('img');
+                    item_img.src =  'img/alarm/motion_sensor.png';
+                    item_img_div.appendChild(item_img);
+                    item_node.appendChild(item_img_div);
+
+                    var item_time = document.createElement('div');
+                    item_time.id = 'motion_sensor_' + item_name + '_time';
+                    item_time.classList.add('detail');
+                    item_time.classList.add('refresh_time');
+                    item_node.appendChild(item_time);
+                }
+
+                document.getElementById('motion_sensor_' + item_name + '_time').innerText = Tools.Timestamp2Time(item_data.refreshed);
             }
         , 3 /* element per row */);
     },

@@ -23,6 +23,7 @@ from shutters_auto import shutters_api
 from openings import openings_api
 from cameras import cameras_api
 from alarm import alarm_api
+from motion import motion_api
 from webui import web_ui
 
 config = ConfigParser()
@@ -45,6 +46,7 @@ app.register_blueprint(shutters_api)
 app.register_blueprint(openings_api)
 app.register_blueprint(cameras_api)
 app.register_blueprint(alarm_api)
+app.register_blueprint(motion_api)
 app.register_blueprint(web_ui)
 
 soundplayer.set_base_url(url)
