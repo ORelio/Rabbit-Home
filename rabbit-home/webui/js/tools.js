@@ -80,15 +80,23 @@ var Tools = {
          }
          api_function(api_endpoint, function(api_data) {
             var all_result_names = Object.keys(api_data);
+            var destination_table = document.getElementById(table_id);
             var current_table_row = null;
             for (var i=0; i < all_result_names.length; i++) {
                 var result_name = all_result_names[i];
                 var result_cell = document.getElementById(cell_id_prefix + result_name);
                 var initial_build = (result_cell === null);
                 if (initial_build) {
-                    if (i%elements_per_row == 0) {
+                    if (current_table_row == null) {
+                        var existing_rows = destination_table.getElementsByTagName('tr');
+                        if (existing_rows.length > 0) {
+                            current_table_row = existing_rows[existing_rows.length - 1];
+                        }
+                    }
+
+                    if (current_table_row === null || current_table_row.getElementsByTagName('td').length == elements_per_row) {
                         current_table_row = document.createElement('tr');
-                        document.getElementById(table_id).appendChild(current_table_row);
+                        destination_table.appendChild(current_table_row);
                     }
 
                     result_cell = document.createElement('td');
