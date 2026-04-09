@@ -111,6 +111,7 @@ var Weather = {
             "Pluie orageuses": "storm-rain",
             "Orages": "storm",
             "Averses orageuses": "storm-rain",
+            "Orage avec grêle": "storm-rain-snow",
             "Risque d'orages": "storm",
         };
         if (mapping[description] !== undefined) {
